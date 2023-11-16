@@ -38,6 +38,12 @@ class PokemonRed:
 
 
 class PokemonRedV1(PokemonRed):
+    def __init__(self, rom_path='pokemon_red.gb',
+            state_path=__file__.rstrip('environment.py') + 'has_pokedex_nballs.state',
+            headless=True, quiet=False):
+        super().__init__(rom_path, state_path, headless, quiet)
+        self.counts_map = np.zeros((375, 500))
+
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         '''Resets the game. Seeding is NOT supported'''
         load_pyboy_state(self.game, self.initial_state)
@@ -52,7 +58,6 @@ class PokemonRedV1(PokemonRed):
 
         self.seen_coords = set()
         self.seen_maps = set()
-        self.counts_map = np.zeros((375, 500))
 
         self.death_count = 0
         self.total_healing = 0
