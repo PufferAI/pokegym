@@ -38,7 +38,7 @@ class PokemonRed:
 
 
 class PokemonRedV1(PokemonRed):
-    def reset(self, seed=None, options=None, max_episode_steps=128, reward_scale=4.0):
+    def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         '''Resets the game. Seeding is NOT supported'''
         load_pyboy_state(self.game, self.initial_state)
 
