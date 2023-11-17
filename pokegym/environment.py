@@ -126,6 +126,7 @@ class PokemonRedV1(PokemonRed):
         # TODO: Don't record large cumulative rewards in the first place
         if self.last_reward is None:
             reward = 0
+            self.last_reward = 0
         else:
             nxt_reward = reward
             reward -= self.last_reward
