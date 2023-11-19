@@ -37,6 +37,7 @@ class Start:
 ACTIONS = (Down, Left, Right, Up, A, B)
 
 def make_env(gb_path, headless=True, quiet=False):
+    gb_path='pokemon_red.gb'
     game = PyBoy(
         gb_path,
         debugging=False,

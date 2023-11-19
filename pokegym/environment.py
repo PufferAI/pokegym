@@ -1,6 +1,7 @@
 from pdb import set_trace as T
 from gymnasium import Env, spaces
 import numpy as np
+import os
 
 from pokegym.pyboy_binding import (ACTIONS, make_env, open_state_file,
     load_pyboy_state, run_action_on_emulator)
@@ -15,9 +16,10 @@ class PokemonRed:
         self.initial_state = open_state_file(state_path)
         self.headless = headless
 
+        R, C = self.screen.raw_screen_buffer_dims()
         self.observation_space = spaces.Box(
             low=0, high=255, dtype=np.uint8,
-            shape=(*self.screen.raw_screen_buffer_dims(), 3),
+            shape=(R//2, C//2, 3),
         )
         self.action_space = spaces.Discrete(len(ACTIONS))
 
@@ -65,7 +67,7 @@ class PokemonRedV1(PokemonRed):
         self.last_party_size = 1
         self.last_reward = None
 
-        return self.render(), {}
+        return self.render()[::2, ::2], {}
 
     def step(self, action):
         run_action_on_emulator(self.game, self.screen, ACTIONS[action], self.headless)
@@ -100,7 +102,7 @@ class PokemonRedV1(PokemonRed):
             else:
                 self.death_count += 1
         healing_reward = self.total_healing
-        death_reward = 0.05 * self.death_count
+        death_reward = -0.05 * self.death_count
 
         # Opponent level reward
         max_opponent_level = max(ram_map.opponent(self.game))
@@ -158,4 +160,4 @@ class PokemonRedV1(PokemonRed):
                 'exploration_map': self.counts_map,
             }
 
-        return self.render(), reward, done, done, info
+        return self.render()[::2, ::2], reward, done, done, info
