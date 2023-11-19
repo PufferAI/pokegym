@@ -36,7 +36,7 @@ class PokemonRed:
         return self.render(), 0, False, False, {}
 
     def close(self):
-        self.game.stop()
+        self.game.stop(False)
 
 
 class PokemonRedV1(PokemonRed):

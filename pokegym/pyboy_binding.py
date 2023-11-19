@@ -2,7 +2,10 @@ from pdb import set_trace as T
 from io import BytesIO
 
 from pyboy import PyBoy
+from pyboy import logger
 from pyboy.utils import WindowEvent
+
+logger.logger.setLevel('ERROR')
 
 
 class Down:
