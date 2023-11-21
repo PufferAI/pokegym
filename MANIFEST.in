@@ -1,1 +1,2 @@
 include pokegym/*.state
+include pokegym/map_data.json
