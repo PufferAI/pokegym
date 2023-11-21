@@ -13,6 +13,11 @@ setup(
         'gymnasium>=0.29',
         'numpy',
     ],
+    entry_points = {
+        'console_scripts': [
+            'pokegym.play = pokegym.environment:play'
+        ]
+    },
     python_requires=">=3.8",
     license="MIT",
     # @pdubs: Put your info here

@@ -1,0 +1,1384 @@
+{
+    "regions": [
+        {
+            "id": "-1",
+            "name": "Kanto",
+            "coordinates": [
+                0,
+                0
+            ],
+            "tileSize": [
+                365,
+                444
+            ]
+        },
+        {
+            "id": "0",
+            "name": "Pallet Town",
+            "coordinates": [
+                64,
+                318
+            ],
+            "tileSize": [
+                20,
+                18
+            ]
+        },
+        {
+            "id": "1",
+            "name": "Viridian City",
+            "coordinates": [
+                54,
+                246
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "2",
+            "name": "Pewter City",
+            "coordinates": [
+                54,
+                138
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "3",
+            "name": "Cerulean City",
+            "coordinates": [
+                234,
+                120
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "4",
+            "name": "Lavender Town",
+            "coordinates": [
+                334,
+                200
+            ],
+            "tileSize": [
+                20,
+                18
+            ]
+        },
+        {
+            "id": "5",
+            "name": "Vermilion City",
+            "coordinates": [
+                234,
+                264
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "6",
+            "name": "Celadon City",
+            "coordinates": [
+                164,
+                192
+            ],
+            "tileSize": [
+                50,
+                36
+            ]
+        },
+        {
+            "id": "7",
+            "name": "Fuchsia City",
+            "coordinates": [
+                174,
+                354
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "8",
+            "name": "Cinnabar island",
+            "coordinates": [
+                64,
+                426
+            ],
+            "tileSize": [
+                20,
+                18
+            ]
+        },
+        {
+            "id": "9",
+            "name": "Indigo Plateau",
+            "coordinates": [
+                14,
+                84
+            ],
+            "tileSize": [
+                20,
+                18
+            ]
+        },
+        {
+            "id": "10",
+            "name": "Saffrdon City",
+            "coordinates": [
+                234,
+                192
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "12",
+            "name": "Route 1",
+            "coordinates": [
+                64,
+                282
+            ],
+            "tileSize": [
+                20,
+                36
+            ]
+        },
+        {
+            "id": "13",
+            "name": "Route 2",
+            "coordinates": [
+                64,
+                174
+            ],
+            "tileSize": [
+                20,
+                72
+            ]
+        },
+        {
+            "id": "14",
+            "name": "Route 3",
+            "coordinates": [
+                94,
+                146
+            ],
+            "tileSize": [
+                70,
+                18
+            ]
+        },
+        {
+            "id": "15",
+            "name": "Route 4",
+            "coordinates": [
+                144,
+                128
+            ],
+            "tileSize": [
+                90,
+                18
+            ]
+        },
+        {
+            "id": "16",
+            "name": "Route 5",
+            "coordinates": [
+                244,
+                156
+            ],
+            "tileSize": [
+                20,
+                36
+            ]
+        },
+        {
+            "id": "17",
+            "name": "Route 6",
+            "coordinates": [
+                244,
+                228
+            ],
+            "tileSize": [
+                20,
+                36
+            ]
+        },
+        {
+            "id": "18",
+            "name": "Route 7",
+            "coordinates": [
+                214,
+                200
+            ],
+            "tileSize": [
+                20,
+                18
+            ]
+        },
+        {
+            "id": "19",
+            "name": "Route 8",
+            "coordinates": [
+                274,
+                200
+            ],
+            "tileSize": [
+                60,
+                18
+            ]
+        },
+        {
+            "id": "20",
+            "name": "Route 9",
+            "coordinates": [
+                274,
+                128
+            ],
+            "tileSize": [
+                60,
+                18
+            ]
+        },
+        {
+            "id": "21",
+            "name": "Route 10",
+            "coordinates": [
+                334,
+                128
+            ],
+            "tileSize": [
+                20,
+                72
+            ]
+        },
+        {
+            "id": "22",
+            "name": "Route 11",
+            "coordinates": [
+                274,
+                272
+            ],
+            "tileSize": [
+                60,
+                18
+            ]
+        },
+        {
+            "id": "23",
+            "name": "Route 12",
+            "coordinates": [
+                334,
+                218
+            ],
+            "tileSize": [
+                20,
+                108
+            ]
+        },
+        {
+            "id": "24",
+            "name": "Route 13",
+            "coordinates": [
+                294,
+                326
+            ],
+            "tileSize": [
+                60,
+                18
+            ]
+        },
+        {
+            "id": "25",
+            "name": "Route 14",
+            "coordinates": [
+                274,
+                326
+            ],
+            "tileSize": [
+                20,
+                54
+            ]
+        },
+        {
+            "id": "26",
+            "name": "Route 15",
+            "coordinates": [
+                214,
+                362
+            ],
+            "tileSize": [
+                60,
+                18
+            ]
+        },
+        {
+            "id": "27",
+            "name": "Route 16",
+            "coordinates": [
+                124,
+                200
+            ],
+            "tileSize": [
+                40,
+                18
+            ]
+        },
+        {
+            "id": "28",
+            "name": "Route 17",
+            "coordinates": [
+                124,
+                218
+            ],
+            "tileSize": [
+                20,
+                144
+            ]
+        },
+        {
+            "id": "29",
+            "name": "Route 18",
+            "coordinates": [
+                124,
+                362
+            ],
+            "tileSize": [
+                50,
+                18
+            ]
+        },
+        {
+            "id": "30",
+            "name": "Sea Route 19",
+            "coordinates": [
+                184,
+                390
+            ],
+            "tileSize": [
+                20,
+                54
+            ]
+        },
+        {
+            "id": "31",
+            "name": "Sea Route 20",
+            "coordinates": [
+                84,
+                426
+            ],
+            "tileSize": [
+                100,
+                18
+            ]
+        },
+        {
+            "id": "32",
+            "name": "Sea Route 21",
+            "coordinates": [
+                64,
+                336
+            ],
+            "tileSize": [
+                20,
+                90
+            ]
+        },
+        {
+            "id": "33",
+            "name": "Route 22",
+            "coordinates": [
+                14,
+                254
+            ],
+            "tileSize": [
+                40,
+                18
+            ]
+        },
+        {
+            "id": "34",
+            "name": "Route 23",
+            "coordinates": [
+                14,
+                102
+            ],
+            "tileSize": [
+                20,
+                144
+            ]
+        },
+        {
+            "id": "35",
+            "name": "Route 24",
+            "coordinates": [
+                244,
+                84
+            ],
+            "tileSize": [
+                20,
+                36
+            ]
+        },
+        {
+            "id": "36",
+            "name": "Route 25",
+            "coordinates": [
+                264,
+                84
+            ],
+            "tileSize": [
+                60,
+                18
+            ]
+        },
+        {
+            "id": "37",
+            "name": "Players House First Floor",
+            "coordinates": [
+                55,
+                328
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "38",
+            "name": "Players House Second Floor",
+            "coordinates": [
+                55,
+                319
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "39",
+            "name": "Rivals House",
+            "coordinates": [
+                85,
+                316
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "40",
+            "name": "Oaks Lab",
+            "coordinates": [
+                85,
+                325
+            ],
+            "tileSize": [
+                10,
+                12
+            ]
+        },
+        {
+            "id": "41",
+            "name": "Pokemon Center",
+            "coordinates": [
+                95,
+                274
+            ],
+            "tileSize": [
+                14,
+                8
+            ]
+        },
+        {
+            "id": "42",
+            "name": "Pokemart",
+            "coordinates": [
+                110,
+                274
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "43",
+            "name": "Pokemon Academy",
+            "coordinates": [
+                95,
+                265
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "44",
+            "name": "Nickname House",
+            "coordinates": [
+                104,
+                265
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "45",
+            "name": "Viridian Gym",
+            "coordinates": [
+                95,
+                246
+            ],
+            "tileSize": [
+                20,
+                18
+            ]
+        },
+        {
+            "id": "46",
+            "name": "Digletts Cave Entrance",
+            "coordinates": [
+                55,
+                184
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "47",
+            "name": "Route 2 Gate Pewter",
+            "coordinates": [
+                85,
+                180
+            ],
+            "tileSize": [
+                10,
+                8
+            ]
+        },
+        {
+            "id": "48",
+            "name": "Trader House",
+            "coordinates": [
+                55,
+                193
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "49",
+            "name": "Route 2 Gate Oaks Aid",
+            "coordinates": [
+                53,
+                202
+            ],
+            "tileSize": [
+                10,
+                8
+            ]
+        },
+        {
+            "id": "50",
+            "name": "Route 2 Gate Viridian",
+            "coordinates": [
+                100,
+                236
+            ],
+            "tileSize": [
+                10,
+                8
+            ]
+        },
+        {
+            "id": "51",
+            "name": "Viridian Forest",
+            "coordinates": [
+                88,
+                188
+            ],
+            "tileSize": [
+                34,
+                48
+            ]
+        },
+        {
+            "id": "52",
+            "name": "Museum F1",
+            "coordinates": [
+                57,
+                130
+            ],
+            "tileSize": [
+                20,
+                8
+            ]
+        },
+        {
+            "id": "53",
+            "name": "Museum F2",
+            "coordinates": [
+                57,
+                122
+            ],
+            "tileSize": [
+                14,
+                8
+            ]
+        },
+        {
+            "id": "54",
+            "name": "Pewter Gym",
+            "coordinates": [
+                43,
+                145
+            ],
+            "tileSize": [
+                10,
+                15
+            ]
+        },
+        {
+            "id": "55",
+            "name": "Trainer House",
+            "coordinates": [
+                45,
+                161
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "56",
+            "name": "Pokemart",
+            "coordinates": [
+                36,
+                161
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "57",
+            "name": "Trainer House",
+            "coordinates": [
+                55,
+                175
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "58",
+            "name": "Pokecenter",
+            "coordinates": [
+                39,
+                170
+            ],
+            "tileSize": [
+                14,
+                8
+            ]
+        },
+        {
+            "id": "59",
+            "name": "Mt Moon Route 3",
+            "coordinates": [
+                147,
+                92
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "60",
+            "name": "Mt Moon B1F",
+            "coordinates": [
+                147,
+                63
+            ],
+            "tileSize": [
+                28,
+                28
+            ]
+        },
+        {
+            "id": "61",
+            "name": "Mt Moon B2F",
+            "coordinates": [
+                147,
+                26
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "62",
+            "name": "House Breakin v1",
+            "coordinates": [
+                280,
+                104
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "63",
+            "name": "Trader House",
+            "coordinates": [
+                225,
+                119
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "64",
+            "name": "Pokemon Center",
+            "coordinates": [
+                265,
+                104
+            ],
+            "tileSize": [
+                14,
+                8
+            ]
+        },
+        {
+            "id": "65",
+            "name": "Cerulean Gym",
+            "coordinates": [
+                275,
+                113
+            ],
+            "tileSize": [
+                10,
+                14
+            ]
+        },
+        {
+            "id": "66",
+            "name": "Bike Shop",
+            "coordinates": [
+                216,
+                147
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "67",
+            "name": "Pokemart",
+            "coordinates": [
+                225,
+                147
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "68",
+            "name": "Pokecenter",
+            "coordinates": [
+                129,
+                128
+            ],
+            "tileSize": [
+                14,
+                8
+            ]
+        },
+        {
+            "id": "69",
+            "name": "House Breakin v2",
+            "coordinates": [
+                280,
+                104
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "70",
+            "name": "Underground Entrance",
+            "coordinates": [
+                265,
+                157
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "71",
+            "name": "Underground Entrance",
+            "coordinates": [
+                265,
+                166
+            ],
+            "tileSize": [
+                8,
+                6
+            ]
+        },
+        {
+            "id": "72",
+            "name": "Daycare",
+            "coordinates": [
+                235,
+                157
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "73",
+            "name": "Underground Entrance",
+            "coordinates": [
+                265,
+                248
+            ],
+            "tileSize": [
+                8,
+                6
+            ]
+        },
+        {
+            "id": "74",
+            "name": "Underground Path",
+            "coordinates": [
+                276,
+                147
+            ],
+            "tileSize": [
+                8,
+                48
+            ]
+        },
+        {
+            "id": "75",
+            "name": "Underground Entrance",
+            "coordinates": [
+                265,
+                255
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "84",
+            "name": "Gate 1F",
+            "coordinates": [
+                325,
+                261
+            ],
+            "tileSize": [
+                8,
+                10
+            ]
+        },
+        {
+            "id": "85",
+            "name": "Digletts Cave Entrance",
+            "coordinates": [
+                275,
+                264
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "86",
+            "name": "Gate 2F",
+            "coordinates": [
+                325,
+                252
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "88",
+            "name": "Bills Lab",
+            "coordinates": [
+                307,
+                76
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "89",
+            "name": "Pokemon Center",
+            "coordinates": [
+                219,
+                264
+            ],
+            "tileSize": [
+                14,
+                8
+            ]
+        },
+        {
+            "id": "90",
+            "name": "Pokemon Fan Club",
+            "coordinates": [
+                216,
+                273
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "91",
+            "name": "Pokemart",
+            "coordinates": [
+                225,
+                282
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "92",
+            "name": "Vermilion Gym",
+            "coordinates": [
+                214,
+                282
+            ],
+            "tileSize": [
+                10,
+                18
+            ]
+        },
+        {
+            "id": "93",
+            "name": "Trader House",
+            "coordinates": [
+                225,
+                273
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "94",
+            "name": "Vermilion Harbor",
+            "coordinates": [
+                239,
+                300
+            ],
+            "tileSize": [
+                28,
+                12
+            ]
+        },
+        {
+            "id": "95",
+            "name": "SS Anne F1",
+            "coordinates": [
+                298,
+                345
+            ],
+            "tileSize": [
+                40,
+                18
+            ]
+        },
+        {
+            "id": "96",
+            "name": "SS Anne F2",
+            "coordinates": [
+                298,
+                377
+            ],
+            "tileSize": [
+                40,
+                18
+            ]
+        },
+        {
+            "id": "97",
+            "name": "SS Anne F3",
+            "coordinates": [
+                279,
+                387
+            ],
+            "tileSize": [
+                20,
+                6
+            ]
+        },
+        {
+            "id": "98",
+            "name": "SS Anne B1F",
+            "coordinates": [
+                308,
+                362
+            ],
+            "tileSize": [
+                30,
+                8
+            ]
+        },
+        {
+            "id": "99",
+            "name": "SS Anne Deck",
+            "coordinates": [
+                265,
+                384
+            ],
+            "tileSize": [
+                20,
+                14
+            ]
+        },
+        {
+            "id": "100",
+            "name": "SS Anne Kitchen",
+            "coordinates": [
+                295,
+                363
+            ],
+            "tileSize": [
+                14,
+                16
+            ]
+        },
+        {
+            "id": "101",
+            "name": "SS Anne Captains Office",
+            "coordinates": [
+                334,
+                371
+            ],
+            "tileSize": [
+                6,
+                8
+            ]
+        },
+        {
+            "id": "102",
+            "name": "SS Anne Cabins 1F",
+            "coordinates": [
+                341,
+                345
+            ],
+            "tileSize": [
+                24,
+                16
+            ]
+        },
+        {
+            "id": "103",
+            "name": "SS Anne Cabins 2F",
+            "coordinates": [
+                341,
+                379
+            ],
+            "tileSize": [
+                24,
+                16
+            ]
+        },
+        {
+            "id": "104",
+            "name": "SS Anne Cabins B1F",
+            "coordinates": [
+                341,
+                362
+            ],
+            "tileSize": [
+                24,
+                16
+            ]
+        },
+        {
+            "id": "108",
+            "name": "Victory Road Entrance",
+            "coordinates": [
+                35,
+                116
+            ],
+            "tileSize": [
+                20,
+                18
+            ]
+        },
+        {
+            "id": "113",
+            "name": "Lances Room",
+            "coordinates": [
+                0,
+                16
+            ],
+            "tileSize": [
+                26,
+                26
+            ]
+        },
+        {
+            "id": "118",
+            "name": "Hall of Fame",
+            "coordinates": [
+                1,
+                0
+            ],
+            "tileSize": [
+                10,
+                8
+            ]
+        },
+        {
+            "id": "120",
+            "name": "Champions Room",
+            "coordinates": [
+                2,
+                8
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "163",
+            "name": "Fishing Guru",
+            "coordinates": [
+                210,
+                264
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "174",
+            "name": "Indigo Plateau Lobby",
+            "coordinates": [
+                16,
+                72
+            ],
+            "tileSize": [
+                16,
+                12
+            ]
+        },
+        {
+            "id": "177",
+            "name": "Fighting Dojo",
+            "coordinates": [
+                265,
+                179
+            ],
+            "tileSize": [
+                10,
+                12
+            ]
+        },
+        {
+            "id": "193",
+            "name": "Badge Gate House",
+            "coordinates": [
+                17,
+                246
+            ],
+            "tileSize": [
+                10,
+                8
+            ]
+        },
+        {
+            "id": "194",
+            "name": "Victory Road F2",
+            "coordinates": [
+                35,
+                97
+            ],
+            "tileSize": [
+                30,
+                18
+            ]
+        },
+        {
+            "id": "196",
+            "name": "Move Advice House",
+            "coordinates": [
+                225,
+                291
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "197",
+            "name": "DIgletts Cave",
+            "coordinates": [
+                284,
+                235
+            ],
+            "tileSize": [
+                40,
+                36
+            ]
+        },
+        {
+            "id": "198",
+            "name": "Victory Road F3",
+            "coordinates": [
+                35,
+                78
+            ],
+            "tileSize": [
+                30,
+                18
+            ]
+        },
+        {
+            "id": "226",
+            "name": "Cerulean Cave 2F",
+            "coordinates": [
+                213,
+                81
+            ],
+            "tileSize": [
+                30,
+                18
+            ]
+        },
+        {
+            "id": "227",
+            "name": "Cerulean Cave B1F",
+            "coordinates": [
+                213,
+                62
+            ],
+            "tileSize": [
+                30,
+                18
+            ]
+        },
+        {
+            "id": "228",
+            "name": "Cerulean Cave Entrance",
+            "coordinates": [
+                213,
+                100
+            ],
+            "tileSize": [
+                30,
+                18
+            ]
+        },
+        {
+            "id": "230",
+            "name": "Badge Man House",
+            "coordinates": [
+                216,
+                119
+            ],
+            "tileSize": [
+                8,
+                8
+            ]
+        },
+        {
+            "id": "245",
+            "name": "Loreleis Room",
+            "coordinates": [
+                20,
+                60
+            ],
+            "tileSize": [
+                10,
+                12
+            ]
+        },
+        {
+            "id": "246",
+            "name": "Brunos Room",
+            "coordinates": [
+                20,
+                48
+            ],
+            "tileSize": [
+                10,
+                12
+            ]
+        },
+        {
+            "id": "247",
+            "name": "Agathas Room",
+            "coordinates": [
+                20,
+                36
+            ],
+            "tileSize": [
+                10,
+                12
+            ]
+        }
+    ]
+}

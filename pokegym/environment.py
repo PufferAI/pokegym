@@ -8,11 +8,32 @@ from pokegym.pyboy_binding import (ACTIONS, make_env, open_state_file,
 from pokegym import ram_map, game_map
 
 
+def play():
+    '''Creates an environment and plays it'''
+    env = PokemonRed(rom_path='pokemon_red.gb', state_path=None, headless=False,
+        disable_input=False, sound=False, sound_emulated=False
+    )
+    env.reset()
+
+    env.game.set_emulation_speed(3)
+    while True:
+        env.render()
+        env.game.tick()
+
 class PokemonRed:
     def __init__(self, rom_path='pokemon_red.gb',
-            state_path=__file__.rstrip('environment.py') + 'has_pokedex_nballs.state',
-            headless=True, quiet=False):
-        self.game, self.screen = make_env(rom_path, headless, quiet)
+            state_path=None, headless=True, quiet=False,
+            disable_input=True, sound=False, sound_emulated=False):
+        '''Creates a PokemonRed environment'''
+        if state_path is None:
+            state_path = __file__.rstrip('environment.py') + 'has_pokedex_nballs.state'
+
+        self.game, self.screen = make_env(
+            rom_path, headless, quiet,
+            disable_input=disable_input,
+            sound_emulated=sound_emulated,
+            sound=sound,
+        )
         self.initial_state = open_state_file(state_path)
         self.headless = headless
 
@@ -41,10 +62,9 @@ class PokemonRed:
 
 class PokemonRedV1(PokemonRed):
     def __init__(self, rom_path='pokemon_red.gb',
-            state_path=__file__.rstrip('environment.py') + 'has_pokedex_nballs.state',
-            headless=True, quiet=False):
+            state_path=None, headless=True, quiet=False):
         super().__init__(rom_path, state_path, headless, quiet)
-        self.counts_map = np.zeros((375, 500))
+        self.counts_map = np.zeros((444, 365))
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         '''Resets the game. Seeding is NOT supported'''
@@ -74,13 +94,13 @@ class PokemonRedV1(PokemonRed):
         self.time += 1
 
         # Exploration reward
-        x, y, map_n = ram_map.position(self.game)
-        self.seen_coords.add((x, y, map_n))
+        r, c, map_n = ram_map.position(self.game)
+        self.seen_coords.add((r, c, map_n))
         self.seen_maps.add(map_n)
         exploration_reward = 0.01 * len(self.seen_coords)
-        glob_x, glob_y = game_map.local_to_global(x, y, map_n)
+        glob_r, glob_c = game_map.local_to_global(r, c, map_n)
         try:
-            self.counts_map[glob_y, glob_x] += 1
+            self.counts_map[glob_r, glob_c] += 1
         except:
             pass
 
@@ -157,7 +177,7 @@ class PokemonRedV1(PokemonRed):
                 'badge_2': float(badges > 1),
                 'event': events,
                 'money': money,
-                'exploration_map': self.counts_map,
+                'pokemon_exploration_map': self.counts_map,
             }
 
         return self.render()[::2, ::2], reward, done, done, info

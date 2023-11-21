@@ -39,14 +39,14 @@ class Start:
 # TODO: Add start button to actions when we need it
 ACTIONS = (Down, Left, Right, Up, A, B)
 
-def make_env(gb_path, headless=True, quiet=False):
+def make_env(gb_path, headless=True, quiet=False, **kwargs):
     gb_path='pokemon_red.gb'
     game = PyBoy(
         gb_path,
         debugging=False,
-        disable_input=False,
         window_type='headless' if headless else 'SDL2',
         hide_window=quiet,
+        **kwargs,
     )
 
     screen = game.botsupport_manager().screen()

@@ -42,10 +42,10 @@ def read_uint16(game, start_addr):
     return 256*val_256 + val_1
 
 def position(game):
-    x_pos = game.get_memory_value(X_POS_ADDR)
-    y_pos = game.get_memory_value(Y_POS_ADDR)
+    r_pos = game.get_memory_value(Y_POS_ADDR)
+    c_pos = game.get_memory_value(X_POS_ADDR)
     map_n = game.get_memory_value(MAP_N_ADDR)
-    return x_pos, y_pos, map_n
+    return r_pos, c_pos, map_n
 
 def party(game):
     party = [game.get_memory_value(addr) for addr in PARTY_ADDR]
