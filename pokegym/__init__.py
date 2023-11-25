@@ -1,1 +1,1 @@
-from pokegym.environment import PokemonRed, PokemonRedV1
+from pokegym.environment import Base, Environment

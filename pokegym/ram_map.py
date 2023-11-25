@@ -70,7 +70,8 @@ def pokemon_caught(game):
     caught_bytes = [game.get_memory_value(addr) for addr in CAUGHT_POKE_ADDR]
     return sum([bit_count(b) for b in caught_bytes])
 
-def hp_fraction(game):
+def hp(game):
+    '''Percentage of total party HP'''
     party_hp = [read_uint16(game, addr) for addr in HP_ADDR]
     party_max_hp = [read_uint16(game, addr) for addr in MAX_HP_ADDR]
 

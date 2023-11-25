@@ -10,30 +10,64 @@ from pokegym import ram_map, game_map
 
 def play():
     '''Creates an environment and plays it'''
-    env = PokemonRed(rom_path='pokemon_red.gb', state_path=None, headless=False,
-        disable_input=False, sound=False, sound_emulated=False
+    env = Environment(rom_path='pokemon_red.gb', state_path=None, headless=False,
+        disable_input=False, sound=False, sound_emulated=False, verbose=True
     )
+
     env.reset()
+    env.game.set_emulation_speed(1)
 
-    env.game.set_emulation_speed(3)
+    # Display available actions
+    print("Available actions:")
+    for idx, action in enumerate(ACTIONS):
+        print(f"{idx}: {action}")
+
+    # Create a mapping from WindowEvent to action index
+    window_event_to_action = {
+        'PRESS_ARROW_DOWN': 0,
+        'PRESS_ARROW_LEFT': 1,
+        'PRESS_ARROW_RIGHT': 2,
+        'PRESS_ARROW_UP': 3,
+        'PRESS_BUTTON_A': 4,
+        'PRESS_BUTTON_B': 5,
+        'PRESS_BUTTON_START': 6,
+        'PRESS_BUTTON_SELECT': 7,
+        # Add more mappings if necessary
+    }
+
     while True:
-        env.render()
+        # Get input from pyboy's get_input method
+        input_events = env.game.get_input()
         env.game.tick()
+        env.render()
+        if len(input_events) == 0:
+            continue
 
-class PokemonRed:
+        for event in input_events:
+            event_str = str(event)
+            if event_str in window_event_to_action:
+                action_index = window_event_to_action[event_str]
+                observation, reward, done, _, info = env.step(
+                    action_index, fast_video=False)
+
+                # Check for game over
+                if done:
+                    print(f"{done}")
+                    break
+
+                # Additional game logic or information display can go here
+                print(f"new Reward: {reward}\n")
+
+class Base:
     def __init__(self, rom_path='pokemon_red.gb',
-            state_path=None, headless=True, quiet=False,
-            disable_input=True, sound=False, sound_emulated=False):
+            state_path=None, headless=True, quiet=False, **kwargs):
         '''Creates a PokemonRed environment'''
         if state_path is None:
             state_path = __file__.rstrip('environment.py') + 'has_pokedex_nballs.state'
 
         self.game, self.screen = make_env(
-            rom_path, headless, quiet,
-            disable_input=disable_input,
-            sound_emulated=sound_emulated,
-            sound=sound,
-        )
+            rom_path, headless, quiet, **kwargs)
+
         self.initial_state = open_state_file(state_path)
         self.headless = headless
 
@@ -60,11 +94,12 @@ class PokemonRed:
         self.game.stop(False)
 
 
-class PokemonRedV1(PokemonRed):
+class Environment(Base):
     def __init__(self, rom_path='pokemon_red.gb',
-            state_path=None, headless=True, quiet=False):
-        super().__init__(rom_path, state_path, headless, quiet)
+            state_path=None, headless=True, quiet=False, verbose=False, **kwargs):
+        super().__init__(rom_path, state_path, headless, quiet, **kwargs)
         self.counts_map = np.zeros((444, 365))
+        self.verbose = verbose
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         '''Resets the game. Seeding is NOT supported'''
@@ -83,14 +118,15 @@ class PokemonRedV1(PokemonRed):
 
         self.death_count = 0
         self.total_healing = 0
-        self.last_hp_fraction = 1.0
+        self.last_hp = 1.0
         self.last_party_size = 1
         self.last_reward = None
 
         return self.render()[::2, ::2], {}
 
-    def step(self, action):
-        run_action_on_emulator(self.game, self.screen, ACTIONS[action], self.headless)
+    def step(self, action, fast_video=True):
+        run_action_on_emulator(self.game, self.screen, ACTIONS[action],
+            self.headless, fast_video=fast_video)
         self.time += 1
 
         # Exploration reward
@@ -108,19 +144,31 @@ class PokemonRedV1(PokemonRed):
         party, party_size, party_levels = ram_map.party(self.game)
         self.max_level_sum = max(self.max_level_sum, sum(party_levels))
         if self.max_level_sum < 30:
-            level_reward = 4 * self.max_level_sum
+            level_reward = 1 * self.max_level_sum
         else:
             level_reward = 30 + (self.max_level_sum - 30)/4
 
         # Healing and death rewards
-        hp_fraction = ram_map.hp_fraction(self.game)
-        fraction_increased = hp_fraction > self.last_hp_fraction
+        hp = ram_map.hp(self.game)
+        hp_delta = hp - self.last_hp
         party_size_constant = party_size == self.last_party_size
-        if fraction_increased and party_size_constant:
-            if self.last_hp_fraction > 0:
-                self.total_healing += hp_fraction - self.last_hp_fraction
-            else:
-                self.death_count += 1
+
+        # Only reward if not reviving at pokecenter
+        if hp_delta > 0 and party_size_constant and not self.is_dead:
+            self.total_healing += hp_delta
+
+        # Dead if hp is zero
+        if hp <= 0 and self.last_hp > 0:
+            self.death_count += 1
+            self.is_dead = True
+        elif hp > 0.01: # TODO: Check if this matters
+            self.is_dead = False
+
+        # Update last known values for next iteration
+        self.last_hp = hp
+        self.last_party_size = party_size
+
+        # Set rewards
         healing_reward = self.total_healing
         death_reward = -0.05 * self.death_count
 
@@ -179,5 +227,20 @@ class PokemonRedV1(PokemonRed):
                 'money': money,
                 'pokemon_exploration_map': self.counts_map,
             }
+
+        if self.verbose:
+            print(
+                f'steps: {self.time}',
+                f'exploration reward: {exploration_reward}',
+                f'level_Reward: {level_reward}',
+                f'healing: {healing_reward}',
+                f'death: {death_reward}',
+                f'op_level: {opponent_level_reward}',
+                f'badges reward: {badges_reward}',
+                f'event reward: {event_reward}',
+                f'money: {money}',
+                f'ai reward: {reward}',
+                f'Info: {info}',
+            )
 
         return self.render()[::2, ::2], reward, done, done, info
