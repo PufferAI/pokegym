@@ -56,7 +56,7 @@ def make_env(gb_path, headless=True, quiet=False, **kwargs):
     screen = game.botsupport_manager().screen()
 
     if not headless:
-        game.set_emulation_speed(6)
+        game.set_emulation_speed(10)
 
     return game, screen
 
