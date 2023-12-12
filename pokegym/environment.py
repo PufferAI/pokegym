@@ -1,7 +1,9 @@
 from pdb import set_trace as T
 from gymnasium import Env, spaces
 import numpy as np
-import os
+from collections import defaultdict
+import io, os
+import random
 
 from pokegym.pyboy_binding import (ACTIONS, make_env, open_state_file,
     load_pyboy_state, run_action_on_emulator)
@@ -59,32 +61,94 @@ def play():
                 print(f"new Reward: {reward}\n")
 
 class Base:
-    def __init__(self, rom_path='pokemon_red.gb',
-            state_path=None, headless=True, quiet=False, **kwargs):
-        '''Creates a PokemonRed environment'''
+    def __init__(
+        self,
+        rom_path="pokemon_red.gb",
+        state_path=None,
+        headless=True,
+        quiet=False,
+        **kwargs,
+    ):
+        """Creates a PokemonRed environment"""
         if state_path is None:
-            state_path = __file__.rstrip('environment.py') + 'has_pokedex_nballs.state' # 'mtmoon.state'
+            state_path = __file__.rstrip("environment.py") + "has_pokedex_nballs.state"
 
-        self.game, self.screen = make_env(
-            rom_path, headless, quiet, **kwargs)
+        self.game, self.screen = make_env(rom_path, headless, quiet, **kwargs)
 
-        self.initial_state = open_state_file(state_path)
+        self.initial_states = [open_state_file(state_path)]
         self.headless = headless
+        self.mem_padding = 2
+        self.memory_shape = 80
+        self.use_screen_memory = True
 
         R, C = self.screen.raw_screen_buffer_dims()
+        self.obs_size = (R // 2, C // 2)
+
+        if self.use_screen_memory:
+            self.screen_memory = defaultdict(
+                lambda: np.zeros((255, 255, 1), dtype=np.uint8)
+            )
+            self.obs_size += (4,)
+        else:
+            self.obs_size += (3,)
         self.observation_space = spaces.Box(
-            low=0, high=255, dtype=np.uint8,
-            shape=(R//2, C//2, 3),
+            low=0, high=255, dtype=np.uint8, shape=self.obs_size
         )
         self.action_space = spaces.Discrete(len(ACTIONS))
 
+    def save_state(self):
+        state = io.BytesIO()
+        state.seek(0)
+        self.game.save_state(state)
+        self.initial_states.append(state)
+
+    def load_random_state(self):
+        rand_idx = random.randint(0, len(self.initial_states) - 1)
+        return self.initial_states[rand_idx]
+
     def reset(self, seed=None, options=None):
-        '''Resets the game. Seeding is NOT supported'''
-        load_pyboy_state(self.game, self.initial_state)
+        """Resets the game. Seeding is NOT supported"""
+        load_pyboy_state(self.game, self.load_random_state())
         return self.screen.screen_ndarray(), {}
 
+    def get_fixed_window(self, arr, y, x, window_size):
+        height, width, _ = arr.shape
+        h_w, w_w = window_size[0] // 2, window_size[1] // 2
+
+        y_min = max(0, y - h_w)
+        y_max = min(height, y + h_w + (window_size[0] % 2))
+        x_min = max(0, x - w_w)
+        x_max = min(width, x + w_w + (window_size[1] % 2))
+
+        window = arr[y_min:y_max, x_min:x_max]
+
+        pad_top = h_w - (y - y_min)
+        pad_bottom = h_w + (window_size[0] % 2) - 1 - (y_max - y - 1)
+        pad_left = w_w - (x - x_min)
+        pad_right = w_w + (window_size[1] % 2) - 1 - (x_max - x - 1)
+
+        return np.pad(
+            window,
+            ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
+            mode="constant",
+        )
+
     def render(self):
-        return self.screen.screen_ndarray()
+        if self.use_screen_memory:
+            r, c, map_n = ram_map.position(self.game)
+            # Update tile map
+            mmap = self.screen_memory[map_n]
+            mmap[r, c] = 255
+
+            return np.concatenate(
+                (
+                    self.screen.screen_ndarray()[::2, ::2],
+                    self.get_fixed_window(mmap, r, c, self.observation_space.shape),
+                ),
+                axis=2,
+            )
+        else:
+            return self.screen.screen_ndarray()[::2, ::2]
 
     def step(self, action):
         run_action_on_emulator(self.game, self.screen, ACTIONS[action], self.headless)
@@ -92,7 +156,6 @@ class Base:
 
     def close(self):
         self.game.stop(False)
-
 
 class Environment(Base):
     def __init__(self, rom_path='pokemon_red.gb',
@@ -102,12 +165,18 @@ class Environment(Base):
         self.verbose = verbose
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
-        '''Resets the game. Seeding is NOT supported'''
-        load_pyboy_state(self.game, self.initial_state)
+        """Resets the game. Seeding is NOT supported"""
+        load_pyboy_state(self.game, self.load_random_state())
+
+        if self.use_screen_memory:
+            self.screen_memory = defaultdict(
+                lambda: np.zeros((255, 255, 1), dtype=np.uint8)
+            )
 
         self.time = 0
         self.max_episode_steps = max_episode_steps
         self.reward_scale = reward_scale
+        self.prev_map_n = None
          
         self.max_events = 0
         self.max_level_sum = 0
@@ -124,12 +193,24 @@ class Environment(Base):
         self.last_hp = [0] * 6
         self.death = 0
 
-        return self.render()[::2, ::2], {}
+        return self.render(), {}
 
     def step(self, action, fast_video=True):
         run_action_on_emulator(self.game, self.screen, ACTIONS[action],
             self.headless, fast_video=fast_video)
         self.time += 1
+
+
+        
+        # # Exploration reward
+        # r, c, map_n = ram_map.position(self.game)
+        # self.seen_coords.add((r, c, map_n))
+        # exploration_reward = 0.01 * len(self.seen_coords)
+        # glob_r, glob_c = game_map.local_to_global(r, c, map_n)
+        # try:
+        #     self.counts_map[glob_r, glob_c] += 1
+        # except:
+        #     pass
 
         # Exploration reward
         r, c, map_n = ram_map.position(self.game)
@@ -138,6 +219,12 @@ class Environment(Base):
         coord_reward = 0.01 * len(self.seen_coords)
         map_reward = 1.0 * len(self.seen_maps)
         exploration_reward = coord_reward + map_reward
+
+        if map_n != self.prev_map_n:
+            self.prev_map_n = map_n
+            if map_n not in self.seen_maps:
+                self.seen_maps.add(map_n)
+                self.save_state()
 
         glob_r, glob_c = game_map.local_to_global(r, c, map_n)
         try:
@@ -298,4 +385,4 @@ class Environment(Base):
                 f'Info: {info}',
             )
 
-        return self.render()[::2, ::2], reward, done, done, info
+        return self.render(), reward, done, done, info
