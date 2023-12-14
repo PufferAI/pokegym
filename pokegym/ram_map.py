@@ -23,7 +23,7 @@ MUSEUM_TICKET_ADDR = 0xD754
 MONEY_ADDR_1 = 0xD347
 MONEY_ADDR_100 = 0xD348
 MONEY_ADDR_10000 = 0xD349
-
+BAG = [0xD31E, 0xD320, 0xD322, 0xD324, 0xD326, 0xD328, 0xD32A, 0xD32C, 0xD32E, 0xD330, 0xD332, 0xD334, 0xD336, 0xD338, 0xD33A, 0xD33C, 0xD33E, 0xD340, 0xD342, 0xD344]
 
 
 #Trainer Moves/PP counter if 00 then no move is present
@@ -52,11 +52,11 @@ CHP = [0xD16C, 0xD198, 0xD1C4, 0xD1F0, 0xD21C, 0xD248] # - Current HP if = 01 + 
 
 
 STATUSDICT = {
-    0x03: 'Poison',
-    0x04: 'Burn',
-    0x05: 'Frozen',
-    0x06: 'Paralyze',
-    0x00: 'None'
+    0x08: 'Poison',
+    # 0x04: 'Burn',
+    # 0x05: 'Frozen',
+    # 0x06: 'Paralyze',
+    0x00: 'None',
 }
 
 def bcd(num):
@@ -84,15 +84,19 @@ def position(game):
 #start new functions
 
 def pokemon(game):
+    status = []
     poke = [game.get_memory_value(a) for a in POKE]
     stat = [game.get_memory_value(a) for a in STATUS]
-    # status = STATUSDICT.get(stat, 'Unknown')
+    for i in stat:
+        s = STATUSDICT.get(i, 'Unknown')
+        status.append(s)
     type1 = [game.get_memory_value(a) for a in TYPE1]
     type2 = [game.get_memory_value(a) for a in TYPE2]
     level = [game.get_memory_value(a) for a in LEVEL]
     mhp = [read_uint16(game, a) for a in MAXHP]
     chp = [read_uint16(game, a) for a in CHP]
     hp = []
+    
     # moves = [game.get_memory_value(addr) for addr in P1MOVES]
     # movepp = [game.get_memory_value(addr) for addr in P1MOVEPP]
     assert len(mhp) == len(chp)
@@ -102,105 +106,8 @@ def pokemon(game):
         else:
             j = i / h
         hp.append(j)
-    return poke, type1, type2, level, hp #, status
+    return poke, type1, type2, level, hp, status
 
-# def p1(game):
-#     p1chp = read_uint16(game, P1CHP)
-#     p1mhp = read_uint16(game, P1MHP)
-#     p1moves = [game.get_memory_value(addr) for addr in P1MOVES]
-#     p1movepp = [game.get_memory_value(addr) for addr in P1MOVEPP]
-#     p1lvl = game.get_memory_value(P1LVL)
-#     p1stat = game.get_memory_value(P1STAT)
-#     p1status = STATUSDICT.get(p1stat, 'Unknown')
-#     p1t1 = game.get_memory_value(P1T1)
-#     p1t2 = game.get_memory_value(P1T2)
-#     if p1mhp == 0:
-#         p1hp = 1
-#     else:
-#         p1hp = p1chp / p1mhp
-#     return p1moves, p1movepp, p1lvl, p1status, p1t1, p1t2, p1hp
-
-# def p2(game):
-#     p2chp = read_uint16(game, P2CHP)
-#     p2mhp = read_uint16(game, P2MHP)
-#     p2moves = [game.get_memory_value(addr) for addr in P2MOVES]
-#     p2movepp = [game.get_memory_value(addr) for addr in P2MOVEPP]
-#     p2lvl = game.get_memory_value(P2LVL)
-#     p2stat = game.get_memory_value(P2STAT)
-#     p2status = STATUSDICT.get(p2stat, 'Unknown')
-#     p2t1 = game.get_memory_value(P2T1)
-#     p2t2 = game.get_memory_value(P2T2)
-#     if p2mhp == 0:
-#         p2hp = 1
-#     else:
-#         p2hp = p2chp / p2mhp
-#     return p2moves, p2movepp, p2lvl, p2status, p2t1, p2t2, p2hp
-
-# def p3(game):
-#     p3chp = read_uint16(game, P3CHP)
-#     p3mhp = read_uint16(game, P3MHP)
-#     p3moves = [game.get_memory_value(addr) for addr in P3MOVES]
-#     p3movepp = [game.get_memory_value(addr) for addr in P3MOVEPP]
-#     p3lvl = game.get_memory_value(P3LVL)
-#     p3stat = game.get_memory_value(P3STAT)
-#     p3status = STATUSDICT.get(p3stat, 'Unknown')
-#     p3t1 = game.get_memory_value(P3T1)
-#     p3t2 = game.get_memory_value(P3T2)
-#     if p3mhp == 0:
-#         p3hp = 1
-#     else:
-#         p3hp = p3chp / p3mhp
-#     return p3moves, p3movepp, p3lvl, p3status, p3t1, p3t2, p3hp
-
-# def p4(game):
-#     p4chp = read_uint16(game, P4CHP)
-#     p4mhp = read_uint16(game, P4MHP)
-#     p4moves = [game.get_memory_value(addr) for addr in P4MOVES]
-#     p4movepp = [game.get_memory_value(addr) for addr in P4MOVEPP]
-#     p4lvl = game.get_memory_value(P4LVL)
-#     p4stat = game.get_memory_value(P4STAT)
-#     p4status = STATUSDICT.get(p4stat, 'Unknown')
-#     p4t1 = game.get_memory_value(P4T1)
-#     p4t2 = game.get_memory_value(P4T2)
-#     if p4mhp == 0:
-#         p4hp = 1
-#     else:
-#         p4hp = p4chp / p4mhp
-#     return p4moves, p4movepp, p4lvl, p4status, p4t1, p4t2, p4hp
-
-# def p5(game):
-#     p5chp = read_uint16(game, P5CHP)
-#     p5mhp = read_uint16(game, P5MHP)
-#     p5moves = [game.get_memory_value(addr) for addr in P5MOVES]
-#     p5movepp = [game.get_memory_value(addr) for addr in P5MOVEPP]
-#     p5lvl = game.get_memory_value(P5LVL)
-#     p5stat = game.get_memory_value(P5STAT)
-#     p5status = STATUSDICT.get(p5stat, 'Unknown')
-#     p5t1 = game.get_memory_value(P5T1)
-#     p5t2 = game.get_memory_value(P5T2)
-#     if p5mhp == 0:
-#         p5hp = 1
-#     else:
-#         p5hp = p5chp / p5mhp
-#     return p5moves, p5movepp, p5lvl, p5status, p5t1, p5t2, p5hp
-
-# def p6(game):
-#     p6chp = read_uint16(game, P6CHP)
-#     p6mhp = read_uint16(game, P6MHP)
-#     p6moves = [game.get_memory_value(addr) for addr in P6MOVES]
-#     p6movepp = [game.get_memory_value(addr) for addr in P6MOVEPP]
-#     p6lvl = game.get_memory_value(P6LVL)
-#     p6stat = game.get_memory_value(P6STAT)
-#     p6status = STATUSDICT.get(p6stat, 'Unknown')
-#     p6t1 = game.get_memory_value(P6T1)
-#     p6t2 = game.get_memory_value(P6T2)
-#     if p6mhp == 0:
-#         p6hp = 1
-#     else:
-#         p6hp = p6chp / p6mhp
-#     return p6moves, p6movepp, p6lvl, p6status, p6t1, p6t2, p6hp
-
-# # def move_check(game):
     
 
 #end new functions
@@ -228,18 +135,6 @@ def pokemon_caught(game):
     caught_bytes = [game.get_memory_value(addr) for addr in CAUGHT_POKE_ADDR]
     return sum([bit_count(b) for b in caught_bytes])
 
-def hp(game):
-    '''Percentage of total party HP'''
-    party_hp = [read_uint16(game, addr) for addr in HP_ADDR]
-    party_max_hp = [read_uint16(game, addr) for addr in MAX_HP_ADDR]
-
-    # Avoid division by zero if no pokemon
-    sum_max_hp = sum(party_max_hp)
-    if sum_max_hp == 0:
-        return 1
-
-    return sum(party_hp) / sum_max_hp
-
 def money(game):
     return (100 * 100 * bcd(game.get_memory_value(MONEY_ADDR_1))
         + 100 * bcd(game.get_memory_value(MONEY_ADDR_100))
@@ -250,6 +145,10 @@ def badges(game):
     return bit_count(badges)
 
 def events(game):
+# D710 - Fossilized Pokémon?
+# D7D8 - Fought Snorlax Yet (Vermilion)
+# D7E0 - Fought Snorlax Yet? (Celadon)
+# D803 - Is SS Anne here?
     '''Adds up all event flags, exclude museum ticket'''
     num_events = sum(bit_count(game.get_memory_value(i))
         for i in range(EVENT_FLAGS_START_ADDR, EVENT_FLAGS_END_ADDR))
@@ -279,6 +178,7 @@ def events(game):
 # CC36 - ID of the first displayed menu item
 # CC35 - Item highlighted with Select (01 = first item, 00 = no item, etc.)
 # CC3A and CC3B are unused 
+# cc51 and cc52 both read 00 when menu is closed 
 
 
 # Pokémon Mart
@@ -329,3 +229,68 @@ def events(game):
 # D7EE - Fought Moltres Yet?
 # D803 - Is SS Anne here?
 # D85F - Mewtwo can be caught if bit 2 clear - Needs D5C0 bit 1 clear, too 
+
+
+# def items(game, start_addr):
+#     item = game.get_memory_value(start_addr)
+#     qty = game.get_memory_value(start_addr + 1)
+#     return item, qty
+
+# def item_bag(game):
+#     item, qty = [items(game, a) for a in BAG]
+#     return item, qty
+
+
+# 1, 2, 3, 4, 6, 11, 16, 17, 18, 19, 20, 41, 42, 72, 73, 196, 197, 198, 199, 200, 53, 54
+
+
+# 001 	0x01 	Master Ball
+# 002 	0x02 	Ultra Ball
+# 003 	0x03 	Great Ball
+# 004 	0x04 	Poké Ball
+# 006 	0x06 	Bicycle
+# 011 	0x0B 	Antidote
+# 016 	0x10 	Full Restore
+# 017 	0x11 	Max Potion
+# 018 	0x12 	Hyper Potion
+# 019 	0x13 	Super Potion
+# 020 	0x14 	Potion
+# 041 	0x29 	Dome Fossil
+# 042 	0x2A 	Helix Fossil
+# 072 	0x48 	Silph Scope
+# 073 	0x49 	Poké Flute
+# 196 	0xC4 	HM01
+# 197 	0xC5 	HM02
+# 198 	0xC6 	HM03
+# 199 	0xC7 	HM04
+# 200 	0xC8 	HM05
+# 053 	0x35 	Revive
+# 054 	0x36 	Max Revive
+
+
+
+
+
+
+    # 0xD31D - Total Items
+    # 0xD31E - Item 1
+    # 0xD320 - Item 2
+    # 0xD322 - Item 3
+    # 0xD324 - Item 4
+    # 0xD326 - Item 5
+    # 0xD328 - Item 6
+    # 0xD32A - Item 7
+    # 0xD32C - Item 8
+    # 0xD32E - Item 9
+    # 0xD330 - Item 10
+    # 0xD332 - Item 11
+    # 0xD334 - Item 12
+    # 0xD336 - Item 13
+    # 0xD338 - Item 14
+    # 0xD33A - Item 15
+    # 0xD33C - Item 16
+    # 0xD33E - Item 17
+    # 0xD340 - Item 18
+    # 0xD342 - Item 19
+    # 0xD344 - Item 20
+    # 0xD346 - Item End of List

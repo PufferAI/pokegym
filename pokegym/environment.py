@@ -1,13 +1,18 @@
 from pdb import set_trace as T
+import uuid
 from gymnasium import Env, spaces
 import numpy as np
 from collections import defaultdict
 import io, os
 import random
+from pathlib import Path
+import mediapy as media
 
 from pokegym.pyboy_binding import (ACTIONS, make_env, open_state_file,
     load_pyboy_state, run_action_on_emulator)
 from pokegym import ram_map, game_map
+
+
 
 
 def play():
@@ -66,6 +71,7 @@ class Base:
         rom_path="pokemon_red.gb",
         state_path=None,
         headless=True,
+        save_video=False,
         quiet=False,
         **kwargs,
     ):
@@ -73,13 +79,17 @@ class Base:
         if state_path is None:
             state_path = __file__.rstrip("environment.py") + "has_pokedex_nballs.state"
 
-        self.game, self.screen = make_env(rom_path, headless, quiet, **kwargs)
+        self.game, self.screen = make_env(rom_path, headless, quiet, save_video=True, **kwargs)
 
         self.initial_states = [open_state_file(state_path)]
+        self.save_video = save_video
         self.headless = headless
         self.mem_padding = 2
         self.memory_shape = 80
         self.use_screen_memory = True
+        self.s_path = Path(f'session_{str(uuid.uuid4())[:8]}')
+        self.instance_id = str(uuid.uuid4())[:8]
+        self.reset_count = 0
 
         R, C = self.screen.raw_screen_buffer_dims()
         self.obs_size = (R // 2, C // 2)
@@ -136,9 +146,9 @@ class Base:
     def render(self):
         if self.use_screen_memory:
             r, c, map_n = ram_map.position(self.game)
-            # Update tile map
             mmap = self.screen_memory[map_n]
-            mmap[r, c] = 255
+            if 0 <= r < mmap.shape[0] and 0 <= c < mmap.shape[1]:
+                mmap[r, c] = 255
 
             return np.concatenate(
                 (
@@ -149,6 +159,10 @@ class Base:
             )
         else:
             return self.screen.screen_ndarray()[::2, ::2]
+        
+    def video(self):
+        video = self.screen.screen_ndarray()
+        return video
 
     def step(self, action):
         run_action_on_emulator(self.game, self.screen, ACTIONS[action], self.headless)
@@ -159,14 +173,27 @@ class Base:
 
 class Environment(Base):
     def __init__(self, rom_path='pokemon_red.gb',
-            state_path=None, headless=True, quiet=False, verbose=False, **kwargs):
-        super().__init__(rom_path, state_path, headless, quiet, **kwargs)
+            state_path=None, headless=True, save_video=True, quiet=False, verbose=False, **kwargs):
+        super().__init__(rom_path, state_path, headless, save_video, quiet, **kwargs)
         self.counts_map = np.zeros((444, 365))
         self.verbose = verbose
+
+    def add_video_frame(self):
+        self.full_frame_writer.add_image(self.video())
+
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         """Resets the game. Seeding is NOT supported"""
         load_pyboy_state(self.game, self.load_random_state())
+
+        if self.save_video:
+            base_dir = self.s_path
+            base_dir.mkdir(parents=True, exist_ok=True)
+            full_name = Path(f'reset_{self.reset_count}').with_suffix('.mp4')
+            self.full_frame_writer = media.VideoWriter(base_dir / full_name, (144, 160), fps=60)
+            self.full_frame_writer.__enter__()
+
+            
 
         if self.use_screen_memory:
             self.screen_memory = defaultdict(
@@ -177,53 +204,52 @@ class Environment(Base):
         self.max_episode_steps = max_episode_steps
         self.reward_scale = reward_scale
         self.prev_map_n = None
-         
+        
         self.max_events = 0
         self.max_level_sum = 0
         self.max_opponent_level = 0
-
         self.seen_coords = set()
         self.seen_maps = set()
-
         self.total_healing = 0
         self.last_party_size = 1
         self.last_reward = None
-
-        self.lvl = 0
         self.last_hp = [0] * 6
         self.death = 0
+        self.qty = 0
+        self.reset_count += 1
 
         return self.render(), {}
 
     def step(self, action, fast_video=True):
         run_action_on_emulator(self.game, self.screen, ACTIONS[action],
             self.headless, fast_video=fast_video)
-        self.time += 1
-
-
         
-        # # Exploration reward
-        # r, c, map_n = ram_map.position(self.game)
-        # self.seen_coords.add((r, c, map_n))
-        # exploration_reward = 0.01 * len(self.seen_coords)
-        # glob_r, glob_c = game_map.local_to_global(r, c, map_n)
-        # try:
-        #     self.counts_map[glob_r, glob_c] += 1
-        # except:
-        #     pass
+        self.time += 1
+        if self.save_video:
+            self.add_video_frame()
 
-        # Exploration reward
+    # Functions / Variables
         r, c, map_n = ram_map.position(self.game)
+        party, party_size, party_levels = ram_map.party(self.game)
+        poke, type1, type2, level, hp, status = ram_map.pokemon(self.game)
         self.seen_coords.add((r, c, map_n))
-        self.seen_maps.add(map_n)
         coord_reward = 0.01 * len(self.seen_coords)
-        map_reward = 1.0 * len(self.seen_maps)
-        exploration_reward = coord_reward + map_reward
+        badges = ram_map.badges(self.game)
 
+    # Constants
+        map_check = set({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 41, 58, 64, 68, 89})
+        item_check = ({1, 2, 3, 4, 6, 11, 16, 17, 18, 19, 20, 41, 42, 72, 73, 196, 197, 198, 199, 200, 53, 54})
+        party_size_constant = party_size == self.last_party_size
+        level_rewards = []
+
+    # Math
+        
+        # Save and Map
         if map_n != self.prev_map_n:
             self.prev_map_n = map_n
-            if map_n not in self.seen_maps:
+            if map_n not in self.seen_maps and map_n in map_check:
                 self.seen_maps.add(map_n)
+                # print(f'Map saved:', map_n)
                 self.save_state()
 
         glob_r, glob_c = game_map.local_to_global(r, c, map_n)
@@ -232,72 +258,71 @@ class Environment(Base):
         except:
             pass
 
-        # Level reward
-        party, party_size, party_levels = ram_map.party(self.game)
-
-        # Party rewards
-        party_size_constant = party_size == self.last_party_size
-
-        poke, type1, type2, level, hp = ram_map.pokemon(self.game) #  status,
-        # Level
-        level_rewards = []
+        #Levels
         for lvl in level:
             if lvl < 15:
                 level_reward = .5 * lvl
             else:
                 level_reward = 7.5 + (lvl - 15) / 4
             level_rewards.append(level_reward)
+
         # HP / Death
         assert len(hp) == len(self.last_hp)
         for h, i in zip(hp, self.last_hp):
             hp_delta = h - i
-            if hp_delta > 0 and party_size_constant:
+            if hp_delta > 0.25 and party_size_constant: #updated from 0 to 0.25
                 self.total_healing += hp_delta
             if h <= 0 and i > 0:
                 self.death += 1
             i = h
-        lvl_rew = sum(level_rewards)
-        healing_reward = self.total_healing
-        self.max_level_sum = sum(level)
-        self.last_party_size = party_size
-        death_reward = -0.05 * self.death
 
-        # # Update last known values for next iteration
+    # Reward / Random Values
+        lvl_rew = sum(level_rewards)
+        healing_reward = self.total_healing/party_size
+        self.max_level_sum = sum(level)
+        death_reward = -0.01 * self.death
+        map_reward = 1.0 * len(self.seen_maps)
+        exploration_reward = coord_reward + map_reward
+        badges_reward = 5 * badges
+
+    # Update Values
         self.last_hp = hp
         self.last_party_size = party_size
+        
 
-        # # Set rewards
-        # healing_reward = self.total_healing
-        # death_reward = -0.05 * self.death_count
+    # Testing
+        # # Items
+        # item, qty = ram_map.item_bag(self.game)
+        # assert len(item) == len(qty)
+        # for i, q in zip(item, qty):
+        #     if i in item_check:
+        #         self.qty += .01 * q
 
-        # Opponent level reward
+    #TODO
+
+        # # Opponent level reward
         # max_opponent_level = max(ram_map.opponent(self.game))
         # self.max_opponent_level = max(self.max_opponent_level, max_opponent_level)
         # opponent_level_reward = 0.2 * self.max_opponent_level
 
-        # Badge reward
-        badges = ram_map.badges(self.game)
-        badges_reward = 5 * badges
 
-        # Event reward
-        events = ram_map.events(self.game)
-        self.max_events = max(self.max_events, events)
-        event_reward = self.max_events
+        # # Event reward
+        # events = ram_map.events(self.game)
+        # self.max_events = max(self.max_events, events)
+        # event_reward = self.max_events
 
-        #money reward
-        money = ram_map.money(self.game)
+        # # money reward
+        # money = ram_map.money(self.game)
 
-        #sum reward
-        reward = self.reward_scale * (event_reward + lvl_rew + death_reward + badges_reward + exploration_reward + healing_reward) # + healing_reward
-        
-        reward1 = (event_reward + lvl_rew + badges_reward + exploration_reward + healing_reward) # + healing_reward
-        
+        # sum reward
+        reward = self.reward_scale * (lvl_rew + death_reward + badges_reward + exploration_reward + healing_reward) # + healing_reward
+        reward1 = (lvl_rew + badges_reward + exploration_reward + healing_reward) # + healing_reward
         if death_reward == 0:
             neg_reward = 1
         else:
             neg_reward = death_reward
 
-        #print rewards
+        # print rewards
         if self.headless == False:
             print(f'-------------Counter-------------')
             print(f'Steps:',self.time,)
@@ -306,6 +331,7 @@ class Environment(Base):
             print(f'Total Level:',self.max_level_sum)
             print(f'Levels:',level)
             print(f'HP:',hp)
+            print(f'Status:',status)
             print(f'Deaths:',self.death)
             print(f'Total Heal:',self.total_healing)
             print(f'Party Size:',self.last_party_size)
@@ -314,9 +340,8 @@ class Environment(Base):
             print(f'Explore:',exploration_reward,'--%',100 * (exploration_reward/reward1))
             print(f'Healing:',healing_reward,'--%',100 * (healing_reward/reward1))
             print(f'Badges:',badges_reward,'--%',100 * (badges_reward/reward1))
-            #print(f'Op Level:',opponent_level_reward,'--%',100 * (opponent_level_reward/reward1))
             print(f'Level:',lvl_rew,'--%',100 * (lvl_rew/reward1))
-            print(f'Events:',event_reward,'--%',100 * (event_reward/reward1))
+            # print(f'Events:',event_reward,'--%',100 * (event_reward/reward1))
             print(f'-------------Negatives-------------')
             print(f'Total:',neg_reward)
             print(f'Deaths:',death_reward, '--%', 100 * (death_reward/neg_reward))
@@ -327,7 +352,7 @@ class Environment(Base):
             # print(f'P4--','Lvl:',p4lvl,', Status:',p4status,', HP:',self.last_p4hp,', Deaths:',self.p4death) 
             # print(f'P5--','Lvl:',p5lvl,', Status:',p5status,', HP:',self.last_p5hp,', Deaths:',self.p5death) 
             # print(f'P6--','Lvl:',p6lvl,', Status:',p6status,', HP:',self.last_p6hp,', Deaths:',self.p6death) 
-            # print(f'Coords:',self.seen_coords)
+            # print(f'Coords:',self.seen_maps)
             # print(f'Dest_status:',self.dest_reward,'--%',100 * (self.dest_reward/neg_reward))
             # print(f'-------------Test-------------')
             # print(f'Last Health:',self.last_health)
@@ -346,11 +371,13 @@ class Environment(Base):
 
         info = {}
         done = self.time >= self.max_episode_steps
+        if self.save_video and done:
+            self.full_frame_writer.close()
         if done:
             info = {
                 'reward': {
                     'delta': reward,
-                    'event': event_reward,
+                    # 'event': event_reward,
                     'level': level_reward,
                     #'opponent_level': opponent_level_reward,
                     'death': death_reward,
@@ -365,8 +392,8 @@ class Environment(Base):
                 'deaths': self.death,
                 'badge_1': float(badges == 1),
                 'badge_2': float(badges > 1),
-                'event': events,
-                'money': money,
+                # 'event': events,
+                # 'money': money,
                 'pokemon_exploration_map': self.counts_map,
             }
 
@@ -379,8 +406,8 @@ class Environment(Base):
                 f'death: {death_reward}',
                 #f'op_level: {opponent_level_reward}',
                 f'badges reward: {badges_reward}',
-                f'event reward: {event_reward}',
-                f'money: {money}',
+                # f'event reward: {event_reward}',
+                # f'money: {money}',
                 f'ai reward: {reward}',
                 f'Info: {info}',
             )

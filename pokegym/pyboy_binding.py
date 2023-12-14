@@ -5,6 +5,8 @@ from pyboy import PyBoy
 from pyboy import logger
 from pyboy.utils import WindowEvent
 
+
+
 logger.logger.setLevel('ERROR')
 
 
