@@ -148,7 +148,7 @@ class Base:
         self.game.save_state(state)
         self.initial_states.append(state)
         _, _, map_n = ram_map.position(self.game)
-        # self.save_screenshot(f'save_state', map_n)
+        self.save_screenshot(f'save_state', map_n)
 
     def load_random_state(self):
         rand_idx = random.randint(0, len(self.initial_states) - 1)
@@ -156,7 +156,7 @@ class Base:
     
     def load_last_state(self):
         _, _, map_n = ram_map.position(self.game)
-        # self.save_screenshot(f'load_state', map_n)
+        self.save_screenshot(f'load_state', map_n)
         return self.initial_states[len(self.initial_states) - 1]
 
     def reset(self, seed=None, options=None):
@@ -222,13 +222,13 @@ class Environment(Base):
         rom_path="pokemon_red.gb",
         state_path=None,
         headless=True,
-        save_video=False,
+        save_video=True,
         quiet=False,
         verbose=False,
         **kwargs,
     ):
         super().__init__(rom_path, state_path, headless, save_video, quiet, **kwargs)
-        self.counts_map = np.zeros((444, 436)) # (444, 365) for old map and old map_data.json
+        self.counts_map = np.zeros((444, 365))
         self.verbose = verbose
         
         self.screenshot_counter = 0
@@ -244,8 +244,6 @@ class Environment(Base):
         self.talk_to_npc_count = {}
         self.already_got_npc_reward = set()
         self.ss_anne_state = False
-        self.seen_npcs = set()
-        self.explore_npc_weight = 1
         
     def add_video_frame(self):
         self.full_frame_writer.add_image(self.video())
@@ -274,36 +272,6 @@ class Environment(Base):
 
         # Update last_map for the next iteration
         self.last_map = current_map
-        
-    
-    def find_neighboring_npc(self, npc_bank, npc_id, player_direction, player_x, player_y) -> int:
-
-        npc_y = ram_map.npc_y(self.game, npc_id, npc_bank)
-        npc_x = ram_map.npc_x(self.game, npc_id, npc_bank)
-        # print(f'player_x: {player_x}, player_y: {player_y}, npc_x: {npc_x}, npc_y: {npc_y}, npc_id: {npc_id}, npc_bank: {npc_bank}')
-        # print(f'number of signs: {ram_map.signs(self.game)}, number of sprites: {ram_map.sprites(self.game)}')
-        # npc_direction = self.pyboy.get_memory_value(0xC009 + npc_bank + npc_id)
-        # check if npc is facing player
-        # 0 - down, 4 - up, 8 - left, 0xC - right
-        # if (
-        #     (player_direction == 0 and npc_direction == 4) or 
-        #     (player_direction == 4 and npc_direction == 0) or
-        #     (player_direction == 8 and npc_direction == 0xC) or
-        #     (player_direction == 0xC and npc_direction == 8)
-        #     ):
-    
-        # Check if player is facing the NPC (skip NPC direction)
-        # 0 - down, 4 - up, 8 - left, 0xC - right
-        if (
-            (player_direction == 0 and npc_x == player_x and npc_y > player_y) or
-            (player_direction == 4 and npc_x == player_x and npc_y < player_y) or
-            (player_direction == 8 and npc_y == player_y and npc_x < player_x) or
-            (player_direction == 0xC and npc_y == player_y and npc_x > player_x)
-        ):
-            # Manhattan distance
-            return abs(npc_y - player_y) + abs(npc_x - player_x)
-
-        return 1000
         
     def rewardable_coords(self, glob_c, glob_r):
                 self.include_conditions = [
@@ -375,13 +343,13 @@ class Environment(Base):
             (158 <= glob_c <= 150) and (30 <= glob_r <= 31),
             (153 <= glob_c <= 150) and (34 <= glob_r <= 31),
             (168 <= glob_c <= 254) and (134 <= glob_r <= 140),
-            (282 >= glob_r >= 277) and (436 >= glob_c >= 0), # Include Viridian Pokecenter everywhere
-            (173 <= glob_r <= 178) and (436 >= glob_c >= 0), # Include Pewter Pokecenter everywhere
-            (131 <= glob_r <= 136) and (436 >= glob_c >= 0), # Include Route 4 Pokecenter everywhere
+            (282 >= glob_r >= 277) and (365 >= glob_c >= 0), # Include Viridian Pokecenter everywhere
+            (173 <= glob_r <= 178) and (365 >= glob_c >= 0), # Include Pewter Pokecenter everywhere
+            (131 <= glob_r <= 136) and (365 >= glob_c >= 0), # Include Route 4 Pokecenter everywhere
             (137 <= glob_c <= 197) and (82 <= glob_r <= 142), # Mt Moon Route 3
             (137 <= glob_c <= 187) and (53 <= glob_r <= 103), # Mt Moon B1F
             (137 <= glob_c <= 197) and (16 <= glob_r <= 66), # Mt Moon B2F
-            (137 <= glob_c <= 436) and (82 <= glob_r <= 444),  # Most of the rest of map after Mt Moon
+            (137 <= glob_c <= 365) and (82 <= glob_r <= 444),  # Most of the rest of map after Mt Moon
         ]
                 return any(self.include_conditions)
 
@@ -526,6 +494,7 @@ class Environment(Base):
         badges = ram_map.badges(self.game)
         badges_reward = 5 * badges
         
+        
         # Save Bill
         bill_state = ram_map.saved_bill(self.game)
         bill_reward = 10 * bill_state
@@ -544,38 +513,51 @@ class Environment(Base):
 
         money = ram_map.money(self.game)
         
-        # Explore NPCs
-         # check if we are talking to someone
-        if ram_map.if_font_is_loaded(self.game):
-            # get information for player
-            player_direction = ram_map.player_direction(self.game)
-            player_y = ram_map.player_y(self.game)
-            player_x = ram_map.player_x(self.game)
-            # get the npc who is closest to the player and facing them
-            # we go through all npcs because there are npcs like
-            # nurse joy who can be across a desk and still talk to you
-            mindex = (0, 0)
-            minv = 1000
-            for npc_bank in range(1):
-                
-                for npc_id in range(1, ram_map.sprites(self.game) + 15):
-                    # print(f'mindex={mindex}')
-                    npc_dist = self.find_neighboring_npc(npc_bank, npc_id, player_direction, player_x, player_y)
-                    # print(f'npc_dist={npc_dist}')
-                    if npc_dist < minv:
-                        mindex = (npc_bank, npc_id)
-                        minv = npc_dist
-            #             print(f'mindex2={mindex}')
-            # print(f'mindex3={mindex}')            
-            self.seen_npcs.add((ram_map.map_n(self.game), mindex[0], mindex[1]))
+        # Test the value of TEXT_BOX_ARROW_BLINK = 0xC4F2
+        # ram_map.talk_to_npc(self.game)
 
+        # Check the trigger condition
+        if ram_map.talk_to_npc(self.game) == 238 and not ram_map.is_in_battle(self.game) and (glob_c, glob_r) not in self.already_got_npc_reward:
+            if self.talk_to_npc_count[map_n] < 5:  # Check if the count is less than 5
+                if self.rewardable_coords(glob_c, glob_r):
+                    self.talk_to_npc_reward += 0.5
+                    self.already_got_npc_reward.update(
+                        (x, y) for x in range(glob_c - 1, glob_c + 2) for y in range(glob_r - 2, glob_r + 3)
+                    )
+                self.talk_to_npc_count[map_n] += 1
+        else:
+            if map_n == 88:
+                if self.talk_to_npc_count[map_n] < 20:  # Check if the count is less than 20 for Bill :-)
+                    self.talk_to_npc_reward += 1
+                    self.already_got_npc_reward.add((glob_c, glob_r)) 
 
-        explore_npcs_reward = self.reward_scale * self.explore_npc_weight * len(self.seen_npcs) * 0.00015
+        talk_to_npc_reward = self.talk_to_npc_reward
+        # if ram_map.talk_to_npc(self.game) == 238:
+        #     self.talk_to_npc_reward += 1
+        # talk_to_npc_reward = self.talk_to_npc_reward
+        
+        # reward_components = (event_reward + level_reward +
+        #                 opponent_level_reward + death_reward + badges_reward +
+        #                 healing_reward + exploration_reward)
 
+        # if reward_components == 0:
+        #     pass
+        # else:
+        #     self.event_r_pc = events / reward_components * 100
+        #     self.level_r_pc = level_reward / reward_components * 100
+        #     self.opp_lvl_r_pc = opponent_level_reward / reward_components * 100
+        #     self.death_r_pc = death_reward / reward_components * 100
+        #     self.badges_r_pc = badges_reward / reward_components * 100
+        #     self.heal_r_pc = healing_reward / reward_components * 100
+        #     self.explor_r_pc = exploration_reward / reward_components * 100
+        #     self.list_r_pc = (self.event_r_pc, self.level_r_pc, self.opp_lvl_r_pc, self.death_r_pc, self.badges_r_pc, self.heal_r_pc, self.explor_r_pc)
+        #     self.total_r_pc = sum(self.list_r_pc)
+
+        # reward = self.reward_scale * reward_components
 
         reward = self.reward_scale * (
             event_reward
-            + explore_npcs_reward
+            + talk_to_npc_reward
             + bill_reward
             + level_reward
             + opponent_level_reward
@@ -612,7 +594,6 @@ class Environment(Base):
                     "ss_anne_state_reward": ss_anne_state_reward,
                     "healing": healing_reward,
                     "exploration": exploration_reward,
-                    "explore npcs": explore_npcs_reward,
                 },
                 "maps_explored": len(self.seen_maps),
                 "party_size": party_size,
@@ -626,27 +607,26 @@ class Environment(Base):
                 "event": events,
                 "money": money,
                 "pokemon_exploration_map": self.counts_map,
-                "seen_npcs_count": len(self.seen_npcs),
             }
 
         if self.verbose:
             print(
-                # f'number of signs: {ram_map.signs(self.game)}, number of sprites: {ram_map.sprites(self.game)}',
                 f"steps: {self.time}",
-                f"seen_npcs #: {len(self.seen_npcs)}",
-                f"seen_npcs set: {self.seen_npcs}",
+                f"talk_to_npc_reward: {talk_to_npc_reward}",
+                f"talk_to_npc_count: {self.talk_to_npc_count}",
+                f"self.talk_to_npc_count[map_n]: {self.talk_to_npc_count[map_n]}",
                 f"is_in_battle: {ram_map.is_in_battle(self.game)}",
+                f"self.already_got_npc_reward: {self.already_got_npc_reward}",
                 f"exploration reward: {exploration_reward}",
-                f"explore_npcs reward: {explore_npcs_reward}",
-                # f"level_Reward: {level_reward}",
-                # f"healing: {healing_reward}",
-                # f"death: {death_reward}",
-                # f"op_level: {opponent_level_reward}",
-                # f"badges reward: {badges_reward}",
-                # f"event reward: {event_reward}",
-                # f"money: {money}",
+                f"level_Reward: {level_reward}",
+                f"healing: {healing_reward}",
+                f"death: {death_reward}",
+                f"op_level: {opponent_level_reward}",
+                f"badges reward: {badges_reward}",
+                f"event reward: {event_reward}",
+                f"money: {money}",
                 f"ai reward: {reward}",
-                # f"Info: {info}",
+                f"Info: {info}",
             )
 
         return self.render(), reward, done, done, info
