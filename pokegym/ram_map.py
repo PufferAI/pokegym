@@ -35,6 +35,7 @@ PLAYER_Y = 0xC104
 PLAYER_X = 0xC106
 WNUMSPRITES = 0xD4E1
 WNUMSIGNS = 0xD4B0
+WCUTTILE = 0xCD4D # $3d = tree tile; $52 = grass tile
 
 # #Trainer Moves/PP counter if 00 then no move is present
 # P1MOVES = [0xD173, 0xD174, 0xD175, 0xD176]
@@ -51,105 +52,105 @@ MOVE3 = [0xD175, 0xD1A1, 0xD1CD, 0xD1F9, 0xD225, 0xD251]
 MOVE4 = [0xD176, 0xD1A2, 0xD1CE, 0xD1FA, 0xD226, 0xD252]
 
 pokemon_data = [
-    {'hex': '01', 'decimal': '001', 'name': 'Rhydon'},
-    {'hex': '02', 'decimal': '002', 'name': 'Kangaskhan'},
-    {'hex': '03', 'decimal': '003', 'name': 'Nidoran♂'},
-    {'hex': '04', 'decimal': '004', 'name': 'Clefairy'},
-    {'hex': '05', 'decimal': '005', 'name': 'Spearow'},
-    {'hex': '06', 'decimal': '006', 'name': 'Voltorb', 'type': 'Electric'},
-    {'hex': '07', 'decimal': '007', 'name': 'Nidoking'},
-    {'hex': '08', 'decimal': '008', 'name': 'Slowbro'},
-    {'hex': '09', 'decimal': '009', 'name': 'Ivysaur'},
-    {'hex': '0A', 'decimal': '010', 'name': 'Exeggutor'},
-    {'hex': '0B', 'decimal': '011', 'name': 'Lickitung'},
-    {'hex': '0C', 'decimal': '012', 'name': 'Exeggcute'},
-    {'hex': '0D', 'decimal': '013', 'name': 'Grimer'},
-    {'hex': '0E', 'decimal': '014', 'name': 'Gengar', 'type': 'Ghost'},
-    {'hex': '0F', 'decimal': '015', 'name': 'Nidoran♀'},
-    {'hex': '10', 'decimal': '016', 'name': 'Nidoqueen'},
-    {'hex': '11', 'decimal': '017', 'name': 'Cubone'},
-    {'hex': '12', 'decimal': '018', 'name': 'Rhyhorn'},
-    {'hex': '13', 'decimal': '019', 'name': 'Lapras', 'type': 'Ice'},
-    {'hex': '14', 'decimal': '020', 'name': 'Arcanine'},
-    {'hex': '15', 'decimal': '021', 'name': 'Mew'},
-    {'hex': '16', 'decimal': '022', 'name': 'Gyarados'},
-    {'hex': '17', 'decimal': '023', 'name': 'Shellder'},
-    {'hex': '18', 'decimal': '024', 'name': 'Tentacool'},
-    {'hex': '19', 'decimal': '025', 'name': 'Gastly', 'type': 'Ghost'},
-    {'hex': '1A', 'decimal': '026', 'name': 'Scyther', 'type': 'Bug'},
-    {'hex': '1B', 'decimal': '027', 'name': 'Staryu'},
-    {'hex': '1C', 'decimal': '028', 'name': 'Blastoise'},
-    {'hex': '1D', 'decimal': '029', 'name': 'Pinsir', 'type': 'Bug'},
-    {'hex': '1E', 'decimal': '030', 'name': 'Tangela'},
-    {'hex': '1F', 'decimal': '031', 'name': 'MissingNo. (Scizor)'},
-    {'hex': '20', 'decimal': '032', 'name': 'MissingNo. (Shuckle)'},
-    {'hex': '21', 'decimal': '033', 'name': 'Growlithe'},
-    {'hex': '22', 'decimal': '034', 'name': 'Onix'},
-    {'hex': '23', 'decimal': '035', 'name': 'Fearow'},
-    {'hex': '24', 'decimal': '036', 'name': 'Pidgey'},
-    {'hex': '25', 'decimal': '037', 'name': 'Slowpoke'},
-    {'hex': '26', 'decimal': '038', 'name': 'Kadabra'},
-    {'hex': '27', 'decimal': '039', 'name': 'Graveler'},
-    {'hex': '28', 'decimal': '040', 'name': 'Chansey'},
-    {'hex': '29', 'decimal': '041', 'name': 'Machoke'},
-    {'hex': '2A', 'decimal': '042', 'name': 'Mr. Mime'},
-    {'hex': '2B', 'decimal': '043', 'name': 'Hitmonlee'},
-    {'hex': '2C', 'decimal': '044', 'name': 'Hitmonchan'},
-    {'hex': '2D', 'decimal': '045', 'name': 'Arbok'},
-    {'hex': '2E', 'decimal': '046', 'name': 'Parasect', 'type': 'Bug'},
-    {'hex': '2F', 'decimal': '047', 'name': 'Psyduck'},
-    {'hex': '30', 'decimal': '048', 'name': 'Drowzee'},
-    {'hex': '31', 'decimal': '049', 'name': 'Golem'},
-    {'hex': '32', 'decimal': '050', 'name': 'MissingNo. (Heracross)'},
-    {'hex': '33', 'decimal': '051', 'name': 'Magmar'},
-    {'hex': '34', 'decimal': '052', 'name': 'MissingNo. (Ho-Oh)'},
-    {'hex': '35', 'decimal': '053', 'name': 'Electabuzz', 'type': 'Electric'},
-    {'hex': '36', 'decimal': '054', 'name': 'Magneton', 'type': 'Electric'},
-    {'hex': '37', 'decimal': '055', 'name': 'Koffing'},
-    {'hex': '38', 'decimal': '056', 'name': 'MissingNo. (Sneasel)'},
-    {'hex': '39', 'decimal': '057', 'name': 'Mankey'},
-    {'hex': '3A', 'decimal': '058', 'name': 'Seel'},
-    {'hex': '3B', 'decimal': '059', 'name': 'Diglett'},
-    {'hex': '3C', 'decimal': '060', 'name': 'Tauros'},
-    {'hex': '3D', 'decimal': '061', 'name': 'MissingNo. (Teddiursa)'},
-    {'hex': '3E', 'decimal': '062', 'name': 'MissingNo. (Ursaring)'},
-    {'hex': '3F', 'decimal': '063', 'name': 'MissingNo. (Slugma)'},
-    {'hex': '40', 'decimal': '064', 'name': 'Farfetch\'d'},
-    {'hex': '41', 'decimal': '065', 'name': 'Venonat', 'type': 'Bug'},
-    {'hex': '42', 'decimal': '066', 'name': 'Dragonite', 'type': 'Dragon'},
-    {'hex': '43', 'decimal': '067', 'name': 'MissingNo. (Magcargo)'},
-    {'hex': '44', 'decimal': '068', 'name': 'MissingNo. (Swinub)'},
-    {'hex': '45', 'decimal': '069', 'name': 'MissingNo. (Piloswine)'},
-    {'hex': '46', 'decimal': '070', 'name': 'Doduo'},
-    {'hex': '47', 'decimal': '071', 'name': 'Poliwag'},
-    {'hex': '48', 'decimal': '072', 'name': 'Jynx', 'type': 'Ice'},
-    {'hex': '49', 'decimal': '073', 'name': 'Moltres'},
-    {'hex': '4A', 'decimal': '074', 'name': 'Articuno', 'type': 'Ice'},
-    {'hex': '4B', 'decimal': '075', 'name': 'Zapdos', 'type': 'Electric'},
-    {'hex': '4C', 'decimal': '076', 'name': 'Ditto'},
-    {'hex': '4D', 'decimal': '077', 'name': 'Meowth'},
-    {'hex': '4E', 'decimal': '078', 'name': 'Krabby'},
-    {'hex': '4F', 'decimal': '079', 'name': 'MissingNo. (Corsola)'},
-    {'hex': '50', 'decimal': '080', 'name': 'MissingNo. (Remoraid)'},
-    {'hex': '51', 'decimal': '081', 'name': 'MissingNo. (Octillery)'},
-    {'hex': '52', 'decimal': '082', 'name': 'Vulpix'},
-    {'hex': '53', 'decimal': '083', 'name': 'Ninetales'},
-    {'hex': '54', 'decimal': '084', 'name': 'Pikachu', 'type': 'Electric'},
-    {'hex': '55', 'decimal': '085', 'name': 'Raichu', 'type': 'Electric'},
-    {'hex': '56', 'decimal': '086', 'name': 'MissingNo. (Deli)'},
-    {'hex': '57', 'decimal': '087', 'name': 'MissingNo. (Mantine)'},
-    {'hex': '58', 'decimal': '088', 'name': 'Dratini', 'type': 'Dragon'},
-    {'hex': '59', 'decimal': '089', 'name': 'Dragonair', 'type': 'Dragon'},
-    {'hex': '5A', 'decimal': '090', 'name': 'Kabuto'},
-    {'hex': '5B', 'decimal': '091', 'name': 'Kabutops'},
-    {'hex': '5C', 'decimal': '092', 'name': 'Horsea'},
-    {'hex': '5D', 'decimal': '093', 'name': 'Seadra'},
-    {'hex': '5E', 'decimal': '094', 'name': 'MissingNo. (Skarmory)'},
-    {'hex': '5F', 'decimal': '095', 'name': 'MissingNo. (Houndour)'},
-    {'hex': '60', 'decimal': '096', 'name': 'Sandshrew'},
-    {'hex': '61', 'decimal': '097', 'name': 'Sandslash'},
-    {'hex': '62', 'decimal': '098', 'name': 'Omanyte'},
-    {'hex': '63', 'decimal': '099', 'name': 'Omastar'},
+    {'hex': '01', 'decimal': '1', 'name': 'Rhydon'},
+    {'hex': '02', 'decimal': '2', 'name': 'Kangaskhan'},
+    {'hex': '03', 'decimal': '3', 'name': 'Nidoran♂'},
+    {'hex': '04', 'decimal': '4', 'name': 'Clefairy'},
+    {'hex': '05', 'decimal': '5', 'name': 'Spearow'},
+    {'hex': '06', 'decimal': '6', 'name': 'Voltorb', 'type': 'Electric'},
+    {'hex': '07', 'decimal': '7', 'name': 'Nidoking'},
+    {'hex': '08', 'decimal': '8', 'name': 'Slowbro'},
+    {'hex': '09', 'decimal': '9', 'name': 'Ivysaur'},
+    {'hex': '0A', 'decimal': '10', 'name': 'Exeggutor'},
+    {'hex': '0B', 'decimal': '11', 'name': 'Lickitung'},
+    {'hex': '0C', 'decimal': '12', 'name': 'Exeggcute'},
+    {'hex': '0D', 'decimal': '13', 'name': 'Grimer'},
+    {'hex': '0E', 'decimal': '14', 'name': 'Gengar', 'type': 'Ghost'},
+    {'hex': '0F', 'decimal': '15', 'name': 'Nidoran♀'},
+    {'hex': '10', 'decimal': '16', 'name': 'Nidoqueen'},
+    {'hex': '11', 'decimal': '17', 'name': 'Cubone'},
+    {'hex': '12', 'decimal': '18', 'name': 'Rhyhorn'},
+    {'hex': '13', 'decimal': '19', 'name': 'Lapras', 'type': 'Ice'},
+    {'hex': '14', 'decimal': '20', 'name': 'Arcanine'},
+    {'hex': '15', 'decimal': '21', 'name': 'Mew'},
+    {'hex': '16', 'decimal': '22', 'name': 'Gyarados'},
+    {'hex': '17', 'decimal': '23', 'name': 'Shellder'},
+    {'hex': '18', 'decimal': '24', 'name': 'Tentacool'},
+    {'hex': '19', 'decimal': '25', 'name': 'Gastly', 'type': 'Ghost'},
+    {'hex': '1A', 'decimal': '26', 'name': 'Scyther', 'type': 'Bug'},
+    {'hex': '1B', 'decimal': '27', 'name': 'Staryu'},
+    {'hex': '1C', 'decimal': '28', 'name': 'Blastoise'},
+    {'hex': '1D', 'decimal': '29', 'name': 'Pinsir', 'type': 'Bug'},
+    {'hex': '1E', 'decimal': '30', 'name': 'Tangela'},
+    {'hex': '1F', 'decimal': '31', 'name': 'MissingNo. (Scizor)'},
+    {'hex': '20', 'decimal': '32', 'name': 'MissingNo. (Shuckle)'},
+    {'hex': '21', 'decimal': '33', 'name': 'Growlithe'},
+    {'hex': '22', 'decimal': '34', 'name': 'Onix'},
+    {'hex': '23', 'decimal': '35', 'name': 'Fearow'},
+    {'hex': '24', 'decimal': '36', 'name': 'Pidgey'},
+    {'hex': '25', 'decimal': '37', 'name': 'Slowpoke'},
+    {'hex': '26', 'decimal': '38', 'name': 'Kadabra'},
+    {'hex': '27', 'decimal': '39', 'name': 'Graveler'},
+    {'hex': '28', 'decimal': '40', 'name': 'Chansey'},
+    {'hex': '29', 'decimal': '41', 'name': 'Machoke'},
+    {'hex': '2A', 'decimal': '42', 'name': 'Mr. Mime'},
+    {'hex': '2B', 'decimal': '43', 'name': 'Hitmonlee'},
+    {'hex': '2C', 'decimal': '44', 'name': 'Hitmonchan'},
+    {'hex': '2D', 'decimal': '45', 'name': 'Arbok'},
+    {'hex': '2E', 'decimal': '46', 'name': 'Parasect', 'type': 'Bug'},
+    {'hex': '2F', 'decimal': '47', 'name': 'Psyduck'},
+    {'hex': '30', 'decimal': '48', 'name': 'Drowzee'},
+    {'hex': '31', 'decimal': '49', 'name': 'Golem'},
+    {'hex': '32', 'decimal': '50', 'name': 'MissingNo. (Heracross)'},
+    {'hex': '33', 'decimal': '51', 'name': 'Magmar'},
+    {'hex': '34', 'decimal': '52', 'name': 'MissingNo. (Ho-Oh)'},
+    {'hex': '35', 'decimal': '53', 'name': 'Electabuzz', 'type': 'Electric'},
+    {'hex': '36', 'decimal': '54', 'name': 'Magneton', 'type': 'Electric'},
+    {'hex': '37', 'decimal': '55', 'name': 'Koffing'},
+    {'hex': '38', 'decimal': '56', 'name': 'MissingNo. (Sneasel)'},
+    {'hex': '39', 'decimal': '57', 'name': 'Mankey'},
+    {'hex': '3A', 'decimal': '58', 'name': 'Seel'},
+    {'hex': '3B', 'decimal': '59', 'name': 'Diglett'},
+    {'hex': '3C', 'decimal': '60', 'name': 'Tauros'},
+    {'hex': '3D', 'decimal': '61', 'name': 'MissingNo. (Teddiursa)'},
+    {'hex': '3E', 'decimal': '62', 'name': 'MissingNo. (Ursaring)'},
+    {'hex': '3F', 'decimal': '63', 'name': 'MissingNo. (Slugma)'},
+    {'hex': '40', 'decimal': '64', 'name': 'Farfetch\'d'},
+    {'hex': '41', 'decimal': '65', 'name': 'Venonat', 'type': 'Bug'},
+    {'hex': '42', 'decimal': '66', 'name': 'Dragonite', 'type': 'Dragon'},
+    {'hex': '43', 'decimal': '67', 'name': 'MissingNo. (Magcargo)'},
+    {'hex': '44', 'decimal': '68', 'name': 'MissingNo. (Swinub)'},
+    {'hex': '45', 'decimal': '69', 'name': 'MissingNo. (Piloswine)'},
+    {'hex': '46', 'decimal': '70', 'name': 'Doduo'},
+    {'hex': '47', 'decimal': '71', 'name': 'Poliwag'},
+    {'hex': '48', 'decimal': '72', 'name': 'Jynx', 'type': 'Ice'},
+    {'hex': '49', 'decimal': '73', 'name': 'Moltres'},
+    {'hex': '4A', 'decimal': '74', 'name': 'Articuno', 'type': 'Ice'},
+    {'hex': '4B', 'decimal': '75', 'name': 'Zapdos', 'type': 'Electric'},
+    {'hex': '4C', 'decimal': '76', 'name': 'Ditto'},
+    {'hex': '4D', 'decimal': '77', 'name': 'Meowth'},
+    {'hex': '4E', 'decimal': '78', 'name': 'Krabby'},
+    {'hex': '4F', 'decimal': '79', 'name': 'MissingNo. (Corsola)'},
+    {'hex': '50', 'decimal': '80', 'name': 'MissingNo. (Remoraid)'},
+    {'hex': '51', 'decimal': '81', 'name': 'MissingNo. (Octillery)'},
+    {'hex': '52', 'decimal': '82', 'name': 'Vulpix'},
+    {'hex': '53', 'decimal': '83', 'name': 'Ninetales'},
+    {'hex': '54', 'decimal': '84', 'name': 'Pikachu', 'type': 'Electric'},
+    {'hex': '55', 'decimal': '85', 'name': 'Raichu', 'type': 'Electric'},
+    {'hex': '56', 'decimal': '86', 'name': 'MissingNo. (Deli)'},
+    {'hex': '57', 'decimal': '87', 'name': 'MissingNo. (Mantine)'},
+    {'hex': '58', 'decimal': '88', 'name': 'Dratini', 'type': 'Dragon'},
+    {'hex': '59', 'decimal': '89', 'name': 'Dragonair', 'type': 'Dragon'},
+    {'hex': '5A', 'decimal': '90', 'name': 'Kabuto'},
+    {'hex': '5B', 'decimal': '91', 'name': 'Kabutops'},
+    {'hex': '5C', 'decimal': '92', 'name': 'Horsea'},
+    {'hex': '5D', 'decimal': '93', 'name': 'Seadra'},
+    {'hex': '5E', 'decimal': '94', 'name': 'MissingNo. (Skarmory)'},
+    {'hex': '5F', 'decimal': '95', 'name': 'MissingNo. (Houndour)'},
+    {'hex': '60', 'decimal': '96', 'name': 'Sandshrew'},
+    {'hex': '61', 'decimal': '97', 'name': 'Sandslash'},
+    {'hex': '62', 'decimal': '98', 'name': 'Omanyte'},
+    {'hex': '63', 'decimal': '99', 'name': 'Omastar'},
     {'hex': '64', 'decimal': '100', 'name': 'Jigglypuff'},
     {'hex': '65', 'decimal': '101', 'name': 'Wigglytuff'},
     {'hex': '66', 'decimal': '102', 'name': 'Eevee'},
@@ -181,7 +182,7 @@ pokemon_data = [
     {'hex': '80', 'decimal': '128', 'name': 'Golduck'},
     {'hex': '81', 'decimal': '129', 'name': 'Hypno'},
     {'hex': '82', 'decimal': '130', 'name': 'Golbat'},
-        {'hex': '83', 'decimal': '131', 'name': 'Mewtwo'},
+    {'hex': '83', 'decimal': '131', 'name': 'Mewtwo'},
     {'hex': '84', 'decimal': '132', 'name': 'Snorlax'},
     {'hex': '85', 'decimal': '133', 'name': 'Magikarp'},
     {'hex': '86', 'decimal': '134', 'name': 'MissingNo. (Porygon2)'},
@@ -228,6 +229,7 @@ pokemon_data = [
     {'hex': 'BD', 'decimal': '189', 'name': 'Weepinbell'},
     {'hex': 'BE', 'decimal': '190', 'name': 'Victreebel'}
 ]
+
 
 moves_dict = {
     1: {"Move": "Pound", "Type": "Normal", "Phy/Spec": "Physical", "PP": 35, "Power": 40, "Acc": "100%"},
@@ -455,7 +457,7 @@ def update_pokemon_level(pokemon_dict, pokemon_name, new_level):
         # Add a new entry for the Pokémon
         pokemon_dict[pokemon_name] = new_level
 
-
+# Returns dict of party pokemons' names, levels, and moves for printing to text file:
 def pokemon_l(game):
     # Initialize a list of dictionaries for all 6 slots
     pokemon_info = [{"slot": str(i + 1), "name": "", "level": "0", "moves": []} for i in range(6)]
@@ -603,18 +605,100 @@ def player_x(game):
 def map_n(game):
     return game.get_memory_value(MAP_N_ADDR)
 
-def npc_y(game, npc_id, npc_bank):
+def npc_y(game, npc_id):
     npc_id = npc_id * 0x10
-    npc_bank = (npc_bank + 1) *  0x100
-    return game.get_memory_value(0xC004 + npc_id + npc_bank)
+    return game.get_memory_value(0xC104 + npc_id)
 
-def npc_x(game, npc_id, npc_bank):
+def npc_x(game, npc_id):
     npc_id = npc_id * 0x10
-    npc_bank = (npc_bank + 1) *  0x100
-    return game.get_memory_value(0xC006 + npc_id + npc_bank)
+    return game.get_memory_value(0xC106 + npc_id)
 
 def sprites(game):
     return game.get_memory_value(WNUMSPRITES)
 
 def signs(game):
     return game.get_memory_value(WNUMSIGNS)
+
+def tree_tile(game):
+    return game.get_memory_value(WCUTTILE)
+
+def rewardable_coords(glob_c, glob_r):
+            include_conditions = [
+        (80 >= glob_c >= 72) and (294 < glob_r <= 320),
+        (69 < glob_c < 74) and (313 >= glob_r >= 295),
+        (73 >= glob_c >= 72) and (220 <= glob_r <= 330),
+        (75 >= glob_c >= 74) and (310 >= glob_r <= 319),
+        # (glob_c >= 75 and glob_r <= 310),
+        (81 >= glob_c >= 73) and (294 < glob_r <= 313),
+        (73 <= glob_c <= 81) and (294 < glob_r <= 308),
+        (80 >= glob_c >= 74) and (330 >= glob_r >= 284),
+        (90 >= glob_c >= 89) and (336 >= glob_r >= 328),
+        # New below
+        # Viridian Pokemon Center
+        (282 >= glob_r >= 277) and glob_c == 98,
+        # Pewter Pokemon Center
+        (173 <= glob_r <= 178) and glob_c == 42,
+        # Route 4 Pokemon Center
+        (131 <= glob_r <= 136) and glob_c == 132,
+        (75 <= glob_c <= 76) and (271 < glob_r < 273),
+        (82 >= glob_c >= 74) and (284 <= glob_r <= 302),
+        (74 <= glob_c <= 76) and (284 >= glob_r >= 277),
+        (76 >= glob_c >= 70) and (266 <= glob_r <= 277),
+        (76 <= glob_c <= 78) and (274 >= glob_r >= 272),
+        (74 >= glob_c >= 71) and (218 <= glob_r <= 266),
+        (71 >= glob_c >= 67) and (218 <= glob_r <= 235),
+        (106 >= glob_c >= 103) and (228 <= glob_r <= 244),
+        (116 >= glob_c >= 106) and (228 <= glob_r <= 232),
+        (116 >= glob_c >= 113) and (196 <= glob_r <= 232),
+        (113 >= glob_c >= 89) and (208 >= glob_r >= 196),
+        (97 >= glob_c >= 89) and (188 <= glob_r <= 214),
+        (102 >= glob_c >= 97) and (189 <= glob_r <= 196),
+        (89 <= glob_c <= 91) and (188 >= glob_r >= 181),
+        (74 >= glob_c >= 67) and (164 <= glob_r <= 184),
+        (68 >= glob_c >= 67) and (186 >= glob_r >= 184),
+        (64 <= glob_c <= 71) and (151 <= glob_r <= 159),
+        (71 <= glob_c <= 73) and (151 <= glob_r <= 156),
+        (73 <= glob_c <= 74) and (151 <= glob_r <= 164),
+        (103 <= glob_c <= 74) and (157 <= glob_r <= 156),
+        (80 <= glob_c <= 111) and (155 <= glob_r <= 156),
+        (111 <= glob_c <= 99) and (155 <= glob_r <= 150),
+        (111 <= glob_c <= 154) and (150 <= glob_r <= 153),
+        (138 <= glob_c <= 154) and (153 <= glob_r <= 160),
+        (153 <= glob_c <= 154) and (153 <= glob_r <= 154),
+        (143 <= glob_c <= 144) and (153 <= glob_r <= 154),
+        (154 <= glob_c <= 158) and (134 <= glob_r <= 145),
+        (152 <= glob_c <= 156) and (145 <= glob_r <= 150),
+        (42 <= glob_c <= 43) and (173 <= glob_r <= 178),
+        (158 <= glob_c <= 163) and (134 <= glob_r <= 135),
+        (161 <= glob_c <= 163) and (114 <= glob_r <= 128),
+        (163 <= glob_c <= 169) and (114 <= glob_r <= 115),
+        (114 <= glob_c <= 169) and (167 <= glob_r <= 102),
+        (169 <= glob_c <= 179) and (102 <= glob_r <= 103),
+        (178 <= glob_c <= 179) and (102 <= glob_r <= 95),
+        (178 <= glob_c <= 163) and (95 <= glob_r <= 96),
+        (164 <= glob_c <= 163) and (110 <= glob_r <= 96),
+        (163 <= glob_c <= 151) and (110 <= glob_r <= 109),
+        (151 <= glob_c <= 154) and (101 <= glob_r <= 109),
+        (151 <= glob_c <= 152) and (101 <= glob_r <= 97),
+        (153 <= glob_c <= 154) and (97 <= glob_r <= 101),
+        (151 <= glob_c <= 154) and (97 <= glob_r <= 98),
+        (152 <= glob_c <= 155) and (69 <= glob_r <= 81),
+        (155 <= glob_c <= 169) and (80 <= glob_r <= 81),
+        (168 <= glob_c <= 184) and (39 <= glob_r <= 43),
+        (183 <= glob_c <= 178) and (43 <= glob_r <= 51),
+        (179 <= glob_c <= 183) and (48 <= glob_r <= 59),
+        (179 <= glob_c <= 158) and (59 <= glob_r <= 57),
+        (158 <= glob_c <= 161) and (57 <= glob_r <= 30),
+        (158 <= glob_c <= 150) and (30 <= glob_r <= 31),
+        (153 <= glob_c <= 150) and (34 <= glob_r <= 31),
+        (168 <= glob_c <= 254) and (134 <= glob_r <= 140),
+        (282 >= glob_r >= 277) and (436 >= glob_c >= 0), # Include Viridian Pokecenter everywhere
+        (173 <= glob_r <= 178) and (436 >= glob_c >= 0), # Include Pewter Pokecenter everywhere
+        (131 <= glob_r <= 136) and (436 >= glob_c >= 0), # Include Route 4 Pokecenter everywhere
+        (137 <= glob_c <= 197) and (82 <= glob_r <= 142), # Mt Moon Route 3
+        (137 <= glob_c <= 187) and (53 <= glob_r <= 103), # Mt Moon B1F
+        (137 <= glob_c <= 197) and (16 <= glob_r <= 66), # Mt Moon B2F
+        (137 <= glob_c <= 436) and (82 <= glob_r <= 444),  # Most of the rest of map after Mt Moon
+        # (0 <= glob_c <= 436) and (0 <= glob_r <= 444),  # Whole map included
+    ]
+            return any(include_conditions)

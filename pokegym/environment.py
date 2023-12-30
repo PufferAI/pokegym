@@ -13,6 +13,7 @@ import random
 import matplotlib.pyplot as plt
 from pathlib import Path
 import mediapy as media
+import subprocess
 
 from pokegym.pyboy_binding import (
     ACTIONS,
@@ -107,8 +108,8 @@ class Base:
     ):
         """Creates a PokemonRed environment"""
         if state_path is None:
-            # state_path = __file__.rstrip("environment.py") + "has_pokedex_nballs.state"
-            state_path = "/home/daa/puffer0.5.2_iron/bill/pokegym/pokegym/current_state/has_pokedex_nballs.state" # .rstrip("environment.py") + "has_pokedex_nballs.state"
+            state_path = __file__.rstrip("environment.py") + "Bulbasaur.state"
+            # state_path = "/home/daa/puffer0.5.2_iron/bill/pokegym/pokegym/current_state/has_pokedex_nballs.state" # .rstrip("environment.py") + "has_pokedex_nballs.state"
                 # Make the environment
         self.game, self.screen = make_env(rom_path, headless, quiet, save_video=True, **kwargs)
         self.initial_states = [open_state_file(state_path)]
@@ -354,10 +355,12 @@ class Environment(Base):
         # Update last_map for the next iteration
         self.last_map = current_map
 
-    def find_neighboring_npc(self, npc_bank, npc_id, player_direction, player_x, player_y) -> int:
+    def find_neighboring_npc(self, npc_id, player_direction, player_x, player_y) -> int:
 
-        npc_y = ram_map.npc_y(self.game, npc_id, npc_bank)
-        npc_x = ram_map.npc_x(self.game, npc_id, npc_bank)
+        npc_y = ram_map.npc_y(self.game, npc_id)
+        npc_x = ram_map.npc_x(self.game, npc_id)
+        # Check if player is facing the NPC (skip NPC direction)
+        # 0 - down, 4 - up, 8 - left, 0xC - right
         if (
             (player_direction == 0 and npc_x == player_x and npc_y > player_y) or
             (player_direction == 4 and npc_x == player_x and npc_y < player_y) or
@@ -368,87 +371,23 @@ class Environment(Base):
             return abs(npc_y - player_y) + abs(npc_x - player_x)
 
         return 1000
-        
-    def rewardable_coords(self, glob_c, glob_r):
-                self.include_conditions = [
-            # (80 >= glob_c >= 72) and (294 < glob_r <= 320),
-            # (69 < glob_c < 74) and (313 >= glob_r >= 295),
-            # (73 >= glob_c >= 72) and (220 <= glob_r <= 330),
-            # (75 >= glob_c >= 74) and (310 >= glob_r <= 319),
-            # # (glob_c >= 75 and glob_r <= 310),
-            # (81 >= glob_c >= 73) and (294 < glob_r <= 313),
-            # (73 <= glob_c <= 81) and (294 < glob_r <= 308),
-            # (80 >= glob_c >= 74) and (330 >= glob_r >= 284),
-            # (90 >= glob_c >= 89) and (336 >= glob_r >= 328),
-            # # New below
-            # # Viridian Pokemon Center
-            # (282 >= glob_r >= 277) and glob_c == 98,
-            # # Pewter Pokemon Center
-            # (173 <= glob_r <= 178) and glob_c == 42,
-            # # Route 4 Pokemon Center
-            # (131 <= glob_r <= 136) and glob_c == 132,
-            # (75 <= glob_c <= 76) and (271 < glob_r < 273),
-            # (82 >= glob_c >= 74) and (284 <= glob_r <= 302),
-            # (74 <= glob_c <= 76) and (284 >= glob_r >= 277),
-            # (76 >= glob_c >= 70) and (266 <= glob_r <= 277),
-            # (76 <= glob_c <= 78) and (274 >= glob_r >= 272),
-            # (74 >= glob_c >= 71) and (218 <= glob_r <= 266),
-            # (71 >= glob_c >= 67) and (218 <= glob_r <= 235),
-            # (106 >= glob_c >= 103) and (228 <= glob_r <= 244),
-            # (116 >= glob_c >= 106) and (228 <= glob_r <= 232),
-            # (116 >= glob_c >= 113) and (196 <= glob_r <= 232),
-            # (113 >= glob_c >= 89) and (208 >= glob_r >= 196),
-            # (97 >= glob_c >= 89) and (188 <= glob_r <= 214),
-            # (102 >= glob_c >= 97) and (189 <= glob_r <= 196),
-            # (89 <= glob_c <= 91) and (188 >= glob_r >= 181),
-            # (74 >= glob_c >= 67) and (164 <= glob_r <= 184),
-            # (68 >= glob_c >= 67) and (186 >= glob_r >= 184),
-            # (64 <= glob_c <= 71) and (151 <= glob_r <= 159),
-            # (71 <= glob_c <= 73) and (151 <= glob_r <= 156),
-            # (73 <= glob_c <= 74) and (151 <= glob_r <= 164),
-            # (103 <= glob_c <= 74) and (157 <= glob_r <= 156),
-            # (80 <= glob_c <= 111) and (155 <= glob_r <= 156),
-            # (111 <= glob_c <= 99) and (155 <= glob_r <= 150),
-            # (111 <= glob_c <= 154) and (150 <= glob_r <= 153),
-            # (138 <= glob_c <= 154) and (153 <= glob_r <= 160),
-            # (153 <= glob_c <= 154) and (153 <= glob_r <= 154),
-            # (143 <= glob_c <= 144) and (153 <= glob_r <= 154),
-            # (154 <= glob_c <= 158) and (134 <= glob_r <= 145),
-            # (152 <= glob_c <= 156) and (145 <= glob_r <= 150),
-            # (42 <= glob_c <= 43) and (173 <= glob_r <= 178),
-            # (158 <= glob_c <= 163) and (134 <= glob_r <= 135),
-            # (161 <= glob_c <= 163) and (114 <= glob_r <= 128),
-            # (163 <= glob_c <= 169) and (114 <= glob_r <= 115),
-            # (114 <= glob_c <= 169) and (167 <= glob_r <= 102),
-            # (169 <= glob_c <= 179) and (102 <= glob_r <= 103),
-            # (178 <= glob_c <= 179) and (102 <= glob_r <= 95),
-            # (178 <= glob_c <= 163) and (95 <= glob_r <= 96),
-            # (164 <= glob_c <= 163) and (110 <= glob_r <= 96),
-            # (163 <= glob_c <= 151) and (110 <= glob_r <= 109),
-            # (151 <= glob_c <= 154) and (101 <= glob_r <= 109),
-            # (151 <= glob_c <= 152) and (101 <= glob_r <= 97),
-            # (153 <= glob_c <= 154) and (97 <= glob_r <= 101),
-            # (151 <= glob_c <= 154) and (97 <= glob_r <= 98),
-            # (152 <= glob_c <= 155) and (69 <= glob_r <= 81),
-            # (155 <= glob_c <= 169) and (80 <= glob_r <= 81),
-            # (168 <= glob_c <= 184) and (39 <= glob_r <= 43),
-            # (183 <= glob_c <= 178) and (43 <= glob_r <= 51),
-            # (179 <= glob_c <= 183) and (48 <= glob_r <= 59),
-            # (179 <= glob_c <= 158) and (59 <= glob_r <= 57),
-            # (158 <= glob_c <= 161) and (57 <= glob_r <= 30),
-            # (158 <= glob_c <= 150) and (30 <= glob_r <= 31),
-            # (153 <= glob_c <= 150) and (34 <= glob_r <= 31),
-            # (168 <= glob_c <= 254) and (134 <= glob_r <= 140),
-            # (282 >= glob_r >= 277) and (436 >= glob_c >= 0), # Include Viridian Pokecenter everywhere
-            # (173 <= glob_r <= 178) and (436 >= glob_c >= 0), # Include Pewter Pokecenter everywhere
-            # (131 <= glob_r <= 136) and (436 >= glob_c >= 0), # Include Route 4 Pokecenter everywhere
-            # (137 <= glob_c <= 197) and (82 <= glob_r <= 142), # Mt Moon Route 3
-            # (137 <= glob_c <= 187) and (53 <= glob_r <= 103), # Mt Moon B1F
-            # (137 <= glob_c <= 197) and (16 <= glob_r <= 66), # Mt Moon B2F
-            # (137 <= glob_c <= 436) and (82 <= glob_r <= 444),  # Most of the rest of map after Mt Moon
-            (0 <= glob_c <= 436) and (0 <= glob_r <= 444),  # Whole map included
-        ]
-                return any(self.include_conditions)
+    
+    
+    def find_neighboring_sign(self, sign_id, player_direction, player_x, player_y) -> bool:
+
+            sign_y = ram_map.mem_val(self.game, (0xD4B0 + (2 * sign_id)))
+            sign_x = ram_map.mem_val(self.game, (0xD4B0 + (2 * sign_id + 1)))
+
+            # Check if player is facing the sign (skip sign direction)
+            # 0 - down, 4 - up, 8 - left, 0xC - right
+            # We are making the assumption that a player will only ever be 1 space away
+            # from a sign
+            return (
+                (player_direction == 0 and sign_x == player_x and sign_y == player_y + 1) or
+                (player_direction == 4 and sign_x == player_x and sign_y == player_y - 1) or
+                (player_direction == 8 and sign_y == player_y and sign_x == player_x - 1) or
+                (player_direction == 0xC and sign_y == player_y and sign_x == player_x + 1)
+            )
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         """Resets the game. Seeding is NOT supported"""
@@ -513,7 +452,7 @@ class Environment(Base):
             glob_c = 0
         
         # Only reward for specified coordinates, not all coordinates seen
-        if self.rewardable_coords(glob_c, glob_r):
+        if ram_map.rewardable_coords(glob_c, glob_r):
             self.seen_coords.add((r, c, map_n))
         else:
             self.seen_coords_no_reward.add((glob_c, glob_r, map_n))
@@ -531,6 +470,13 @@ class Environment(Base):
         exploration_reward = 0.01 * len(self.seen_coords)
         self.update_heat_map(r, c, map_n)
 
+        # Aggregate the data in each env log file. Default location of file: pufferlib/log_file_aggregator.py
+        if self.time % 1000 == 0:
+            try:
+                subprocess.run(['python', '/home/daa/puffer0.5.2_iron/bill/pufferlib/log_file_aggregator.py'], check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running log_file_aggregator.py: {e}")
+        
         # Level reward
         party_size, party_levels = ram_map.party(self.game)
         self.max_level_sum = max(self.max_level_sum, sum(party_levels))
@@ -594,33 +540,66 @@ class Environment(Base):
 
         money = ram_map.money(self.game)
         
-        # Explore NPCs
-                # check if the font is loaded
+        # Check NPC/hidden object function
+        # check if the font is loaded
         if ram_map.mem_val(self.game, 0xCFC4):
             # check if we are talking to a hidden object:
-            if ram_map.mem_val(self.game, 0xCD3D) == 0x0 and ram_map.mem_val(self.game, 0xCD3E) == 0x0:
+            player_direction = ram_map.mem_val(self.game, 0xC109)
+            if ram_map.mem_val(self.game, 0xCD3D) != 0x0 and ram_map.mem_val(self.game, 0xCD3E) != 0x0:
                 # add hidden object to seen hidden objects
                 self.seen_hidden_objs.add((ram_map.mem_val(self.game, 0xD35E), ram_map.mem_val(self.game, 0xCD3F)))
-            else:
-                # check if we are talking to someone
-                # if ram_map.if_font_is_loaded(self.game):
-                    # get information for player
-                player_direction = ram_map.player_direction(self.game)
-                player_y = ram_map.player_y(self.game)
-                player_x = ram_map.player_x(self.game)
-                # get the npc who is closest to the player and facing them
-                # we go through all npcs because there are npcs like
-                # nurse joy who can be across a desk and still talk to you
-                mindex = (0, 0)
-                minv = 1000
-                for npc_bank in range(1):
-                    
-                    for npc_id in range(1, ram_map.sprites(self.game) + 15):
-                        npc_dist = self.find_neighboring_npc(npc_bank, npc_id, player_direction, player_x, player_y)
-                        if npc_dist < minv:
-                            mindex = (npc_bank, npc_id)
-                            minv = npc_dist        
-                self.seen_npcs.add((ram_map.map_n(self.game), mindex[0], mindex[1]))
+        else:
+            # get information for player
+            player_direction = ram_map.mem_val(self.game, 0xC109)
+            player_y = ram_map.mem_val(self.game, 0xC104)
+            player_x = ram_map.mem_val(self.game, 0xC106)
+            # get the npc who is closest to the player and facing them
+            # we go through all npcs because there are npcs like
+            # nurse joy who can be across a desk and still talk to you
+            mindex = 0
+            minv = 1000
+            for npc_id in range(1, ram_map.mem_val(self.game, 0xD4E1)):
+                npc_dist = self.find_neighboring_npc(npc_id, player_direction, player_x, player_y)
+                if npc_dist < minv:
+                    mindex = npc_id
+                    minv = npc_dist
+            # A little counterintuitive. A mindex of 0 means the player isn't talking to an NPC
+            # However, given that we are also checking for hidden objects and signs,
+            # it could also mean a field move is being used which is worth the reward.
+            if mindex != 0:
+                self.seen_npcs.add((ram_map.mem_val(self.game, 0xD35E), mindex))
+        
+        # Function below for sign handling in future; uncomment entire function to handle signs
+        # # check if the font is loaded
+        # if ram_map.mem_val(self.game, 0xCFC4):
+        #     # check if we are talking to a hidden object:
+        #     player_direction = ram_map.mem_val(self.game, 0xC109)
+        #     player_y_tiles = ram_map.mem_val(self.game, 0xD361)
+        #     player_x_tiles = ram_map.mem_val(self.game, 0xD362)
+        #     if ram_map.mem_val(self.game, 0xCD3D) != 0x0 and ram_map.mem_val(self.game, 0xCD3E) != 0x0:
+        #         # add hidden object to seen hidden objects
+        #         self.seen_hidden_objs.add((ram_map.mem_val(self.game, 0xD35E), ram_map.mem_val(self.game, 0xCD3F)))
+        #     elif any(self.find_neighboring_sign(sign_id, player_direction, player_x_tiles, player_y_tiles) for sign_id in range(ram_map.mem_val(self.game, 0xD4B0))):
+        #         pass # doing nothing if it's a sign atm
+        #     else:
+        #         # get information for player
+        #         player_y = ram_map.mem_val(self.game, 0xC104)
+        #         player_x = ram_map.mem_val(self.game, 0xC106)
+        #         # get the npc who is closest to the player and facing them
+        #         # we go through all npcs because there are npcs like
+        #         # nurse joy who can be across a desk and still talk to you
+        #         mindex = 0
+        #         minv = 1000
+        #         for npc_id in range(1, ram_map.mem_val(self.game, 0xD4E1)):
+        #             npc_dist = self.find_neighboring_npc(npc_id, player_direction, player_x, player_y)
+        #             if npc_dist < minv:
+        #                 mindex = npc_id
+        #                 minv = npc_dist
+        #         # A little counterintuitive. A mindex of 0 means the player isn't talking to an NPC
+        #         # However, given that we are also checking for hidden objects and signs,
+        #         # it could also mean a field move is being used which is worth the reward.
+        #         # if mindex != 0:
+        #         self.seen_npcs.add((ram_map.mem_val(self.game, 0xD35E), mindex))
 
         explore_npcs_reward = self.reward_scale * self.explore_npc_weight * len(self.seen_npcs) * 0.00015
         seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon) * 0.00010
