@@ -14,8 +14,7 @@ from pokegym.pyboy_binding import (ACTIONS, make_env, open_state_file,
     load_pyboy_state, run_action_on_emulator)
 from pokegym import ram_map, game_map, data
 
-STATE_PATH = __file__.rstrip("environment.py") + "States"
-
+STATE_PATH = __file__.rstrip("environment.py") + "States/"
 def get_random_state():
     state_files = [f for f in os.listdir(STATE_PATH) if f.endswith(".state")]
     if not state_files:
@@ -34,13 +33,12 @@ class Base:
     ):
         """Creates a PokemonRed environment"""
         if state_path is None:
-            state_path = STATE_PATH + "has_pokedex_nballs.state" # STATE_PATH + "has_pokedex_nballs.state" or self.randstate 
+            state_path = STATE_PATH + "Bulbasaur.state" # STATE_PATH + "has_pokedex_nballs.state" or self.randstate 
         with open("experiments/current_exp.txt", "r") as file:
             exp_name = file.read()
-        R, C = self.screen.raw_screen_buffer_dims()
         
-
         self.game, self.screen = make_env(rom_path, headless, quiet, save_video=True, **kwargs)
+        R, C = self.screen.raw_screen_buffer_dims()
         self.state_file = get_random_state()
         self.randstate = os.path.join(STATE_PATH, self.state_file)
         self.initial_states = [open_state_file(state_path)]
@@ -223,7 +221,6 @@ class Environment(Base):
         
 
     # Exploration
-        
         # Map Reward
         r, c, map_n = ram_map.position(self.game)
         self.seen_coords.add((r, c, map_n))
@@ -239,7 +236,6 @@ class Environment(Base):
         exploration_reward = coord_reward + map_reward
 
         #Plot Map
-
         glob_r, glob_c = game_map.local_to_global(r, c, map_n)
         try:
             self.counts_map[glob_r, glob_c] += 1
@@ -287,8 +283,6 @@ class Environment(Base):
         healing_reward = self.total_healing 
         death_reward = -1.0 * self.death
 
-        
-
     # Update Values
         self.last_party_size = party_size
         
@@ -301,13 +295,17 @@ class Environment(Base):
         self.max_events = events
         event_reward = self.max_events
 
+    # HM reward
+        hm_count = ram_map.get_hm_rewards(self.game)
+        hm_reward = hm_count * 10 # 5
+
     # Testing
         # # Items
-        # item, qty = ram_map.item_bag(self.game)
-        # assert len(item) == len(qty)
-        # for i, q in zip(item, qty):
-        #     if i in item_check:
-        #         self.qty += .01 * q
+        # items = ram_map.get_items_in_bag(self.game)
+        # if items[0] in item_check:
+        #     self.qty += .01 * items[1]
+        # print(f'Items:{items}')
+        # print(f'Debug:{items[0]}, {items[1]}')
 
     #TODO
 
@@ -323,8 +321,8 @@ class Environment(Base):
         # money = ram_map.money(self.game)
 
         # sum reward
-        reward = self.reward_scale * (lvl_rew + badges_reward + exploration_reward + healing_reward + event_reward) #  + death_reward
-        reward1 = (lvl_rew + badges_reward + exploration_reward + healing_reward + event_reward) # + healing_reward
+        reward = self.reward_scale * (lvl_rew + badges_reward + exploration_reward + healing_reward + event_reward + hm_reward) #  + death_reward
+        reward1 = (lvl_rew + badges_reward + exploration_reward + healing_reward + event_reward + hm_reward) # + healing_reward
         if death_reward == 0:
             neg_reward = 1
         else:
@@ -336,6 +334,9 @@ class Environment(Base):
             print(f'Steps:',self.time,)
             print(f'Sum Reward:',reward)
             print(f'Coords:',len(self.seen_maps))
+            print(f'HM Count:',hm_count)
+            # print(f'Items:',items)
+            # print(f'Items Reward::',self.qty)
             print(f'Total Level:',self.max_level_sum)
             print(f'Levels:',level)
             print(f'HP:',hp)
@@ -346,6 +347,7 @@ class Environment(Base):
             print(f'Party Size:',self.last_party_size)
             print(f'-------------Rewards-------------')
             print(f'Total:',reward1)
+            print(f'HM Reward:',hm_reward)
             print(f'Explore:',exploration_reward,'--%',100 * (exploration_reward/reward1))
             print(f'Healing:',healing_reward,'--%',100 * (healing_reward/reward1))
             print(f'Badges:',badges_reward,'--%',100 * (badges_reward/reward1))
@@ -388,7 +390,7 @@ class Environment(Base):
                     'delta': reward,
                     'event': event_reward,
                     'level': level_reward,
-                    #'opponent_level': opponent_level_reward,
+                    'hm_count': hm_count,
                     'death': death_reward,
                     'badges': badges_reward,
                     'healing': healing_reward,
@@ -399,6 +401,7 @@ class Environment(Base):
                 'highest_pokemon_level': max(party_levels),
                 'total_party_level': sum(party_levels),
                 'deaths': self.death,
+                'hm': hm_reward,
                 'badge_1': float(badges >= 1),
                 'badge_2': float(badges > 1),
                 'event': events,
@@ -406,19 +409,19 @@ class Environment(Base):
                 'pokemon_exploration_map': self.counts_map,
             }
 
-        if self.verbose:
-            print(
-                f'steps: {self.time}',
-                f'exploration reward: {exploration_reward}',
-                f'level_Reward: {level_reward}',
-                f'healing: {healing_reward}',
-                f'death: {death_reward}',
-                #f'op_level: {opponent_level_reward}',
-                f'badges reward: {badges_reward}',
-                f'event reward: {event_reward}',
-                # f'money: {money}',
-                f'ai reward: {reward}',
-                f'Info: {info}',
-            )
+        # if self.verbose:
+        #     print(
+        #         f'steps: {self.time}',
+        #         f'exploration reward: {exploration_reward}',
+        #         f'level_Reward: {level_reward}',
+        #         f'healing: {healing_reward}',
+        #         f'death: {death_reward}',
+        #         #f'op_level: {opponent_level_reward}',
+        #         f'badges reward: {badges_reward}',
+        #         f'event reward: {event_reward}',
+        #         # f'money: {money}',
+        #         f'ai reward: {reward}',
+        #         f'Info: {info}',
+        #     )
 
         return self.render(), reward, done, done, info

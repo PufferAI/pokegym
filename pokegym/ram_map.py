@@ -110,15 +110,36 @@ def events(game):
 
     # Omit 13 events by default
     return num_events + museum_ticket + (birds * 10) + (gyms * 5)
+
+def get_items_in_bag(game, one_indexed=0):
+    first_item = 0xD31E
+    # total 20 items
+    # item1, quantity1, item2, quantity2, ...
+    item_ids = []
+    for i in range(0, 20, 2):
+        item_id = game.get_memory_value(first_item + i)
+        if item_id == 0 or item_id == 0xff:
+            break
+        item_ids.append(item_id + one_indexed)
+    return item_ids
+
+def get_hm_rewards(game):
+    hm_ids = [0xC4, 0xC5, 0xC6, 0xC7, 0xC8]
+    items = get_items_in_bag(game)
+    total_hm_cnt = 0
+    for hm_id in hm_ids:
+        if hm_id in items:
+            total_hm_cnt += 1
+    return total_hm_cnt * 1
 # end new functions
 
 # Start Utilities
 def bcd(num):
     return 10 * ((num >> 4) & 0x0f) + (num & 0x0f)
 
-def read_m(game, val):
-    addr = game.get_memory_value(val)
-    return addr
+def read_m(game, addr):
+    val = game.get_memory_value(addr)
+    return val
 
 def bit_count(bits):
     return bin(bits).count('1')
