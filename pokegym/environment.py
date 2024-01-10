@@ -1,3 +1,4 @@
+import csv
 from pdb import set_trace as T
 import uuid
 from gymnasium import Env, spaces
@@ -8,62 +9,18 @@ import random
 from pathlib import Path
 import mediapy as media
 
+
 from pokegym.pyboy_binding import (ACTIONS, make_env, open_state_file,
     load_pyboy_state, run_action_on_emulator)
-from pokegym import ram_map, game_map
+from pokegym import ram_map, game_map, data
 
+STATE_PATH = __file__.rstrip("environment.py") + "States"
 
-
-
-def play():
-    '''Creates an environment and plays it'''
-    env = Environment(rom_path='pokemon_red.gb', state_path=None, headless=False,
-        disable_input=False, sound=False, sound_emulated=False, verbose=True
-    )
-
-    env.reset()
-    env.game.set_emulation_speed(1)
-
-    # Display available actions
-    print("Available actions:")
-    for idx, action in enumerate(ACTIONS):
-        print(f"{idx}: {action}")
-
-    # Create a mapping from WindowEvent to action index
-    window_event_to_action = {
-        'PRESS_ARROW_DOWN': 0,
-        'PRESS_ARROW_LEFT': 1,
-        'PRESS_ARROW_RIGHT': 2,
-        'PRESS_ARROW_UP': 3,
-        'PRESS_BUTTON_A': 4,
-        'PRESS_BUTTON_B': 5,
-        'PRESS_BUTTON_START': 6,
-        'PRESS_BUTTON_SELECT': 7,
-        # Add more mappings if necessary
-    }
-
-    while True:
-        # Get input from pyboy's get_input method
-        input_events = env.game.get_input()
-        env.game.tick()
-        env.render()
-        if len(input_events) == 0:
-            continue
-
-        for event in input_events:
-            event_str = str(event)
-            if event_str in window_event_to_action:
-                action_index = window_event_to_action[event_str]
-                observation, reward, done, _, info = env.step(
-                    action_index, fast_video=False)
-
-                # Check for game over
-                if done:
-                    print(f"{done}")
-                    break
-
-                # Additional game logic or information display can go here
-                print(f"new Reward: {reward}\n")
+def get_random_state():
+    state_files = [f for f in os.listdir(STATE_PATH) if f.endswith(".state")]
+    if not state_files:
+        raise FileNotFoundError("No State files found in the specified directory.")
+    return random.choice(state_files)
 
 class Base:
     def __init__(
@@ -77,33 +34,33 @@ class Base:
     ):
         """Creates a PokemonRed environment"""
         if state_path is None:
-            state_path = __file__.rstrip("environment.py") + "has_pokedex_nballs.state"
+            state_path = __file__.rstrip("environment.py") + "States/has_pokedex_nballs.state" # "has_pokedex_nballs.state" or self.randstate 
+        with open("experiments/current_exp.txt", "r") as file:
+            exp_name = file.read()
+        R, C = self.screen.raw_screen_buffer_dims()
+        
 
         self.game, self.screen = make_env(rom_path, headless, quiet, save_video=True, **kwargs)
-
+        self.state_file = get_random_state()
+        self.randstate = os.path.join(STATE_PATH, self.state_file)
         self.initial_states = [open_state_file(state_path)]
         self.save_video = save_video
         self.headless = headless
         self.mem_padding = 2
         self.memory_shape = 80
         self.use_screen_memory = True
-        self.s_path = Path(f'session_{str(uuid.uuid4())[:8]}')
-        self.instance_id = str(uuid.uuid4())[:8]
+        self.exp_path = Path(f'experiments/{str(exp_name)}')
+        self.env_id = Path(f'session_{str(uuid.uuid4())[:4]}')
+        self.s_path = Path(f'{str(self.exp_path)}/sessions/{str(self.env_id)}')
         self.reset_count = 0
-
-        R, C = self.screen.raw_screen_buffer_dims()
         self.obs_size = (R // 2, C // 2)
 
         if self.use_screen_memory:
-            self.screen_memory = defaultdict(
-                lambda: np.zeros((255, 255, 1), dtype=np.uint8)
-            )
+            self.screen_memory = defaultdict(lambda: np.zeros((255, 255, 1), dtype=np.uint8))
             self.obs_size += (4,)
         else:
             self.obs_size += (3,)
-        self.observation_space = spaces.Box(
-            low=0, high=255, dtype=np.uint8, shape=self.obs_size
-        )
+        self.observation_space = spaces.Box(low=0, high=255, dtype=np.uint8, shape=self.obs_size)
         self.action_space = spaces.Discrete(len(ACTIONS))
 
     def save_state(self):
@@ -175,45 +132,64 @@ class Environment(Base):
     def __init__(self, rom_path='pokemon_red.gb',
             state_path=None, headless=True, save_video=True, quiet=False, verbose=False, **kwargs):
         super().__init__(rom_path, state_path, headless, save_video, quiet, **kwargs)
-        self.counts_map = np.zeros((444, 365))
+        self.counts_map = np.zeros((444, 436))
         self.verbose = verbose
+        self.log = True
 
     def add_video_frame(self):
         self.full_frame_writer.add_image(self.video())
 
+    def write_to_log(self):
+        pokemon_info = data.pokemon_l(self.game)
+        x, y ,map_n = ram_map.position(self.game)
+        session_path = self.s_path
+        base_dir = self.exp_path
+        reset = self.reset_count
+        env_id = self.env_id
+        base_dir.mkdir(parents=True, exist_ok=True)
+        session_path.mkdir(parents=True, exist_ok=True)
+        csv_file_path = base_dir / "unique_positions.csv"
+        with open(session_path / self.full_name_log, 'w') as f:
+            for pokemon in pokemon_info:
+                f.write(f"Slot: {pokemon['slot']}\n")
+                f.write(f"Name: {pokemon['name']}\n")
+                f.write(f"Level: {pokemon['level']}\n")
+                f.write(f"Moves: {', '.join(pokemon['moves'])}\n")
+                f.write("\n")  # Add a newline between Pokémon
+        with open(csv_file_path, 'a') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([env_id, reset, x, y, map_n])
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         """Resets the game. Seeding is NOT supported"""
         load_pyboy_state(self.game, self.load_random_state())
 
         if self.save_video:
-            base_dir = self.s_path
-            base_dir.mkdir(parents=True, exist_ok=True)
+            env_path = self.s_path
+            env_path.mkdir(parents=True, exist_ok=True)
             full_name = Path(f'reset_{self.reset_count}').with_suffix('.mp4')
-            self.full_frame_writer = media.VideoWriter(base_dir / full_name, (144, 160), fps=60)
+            self.full_frame_writer = media.VideoWriter(env_path / full_name, (144, 160), fps=60)
             self.full_frame_writer.__enter__()
 
-            
-
         if self.use_screen_memory:
-            self.screen_memory = defaultdict(
-                lambda: np.zeros((255, 255, 1), dtype=np.uint8)
-            )
+            self.screen_memory = defaultdict(lambda: np.zeros((255, 255, 1), dtype=np.uint8))
 
         self.time = 0
         self.max_episode_steps = max_episode_steps
         self.reward_scale = reward_scale
         self.prev_map_n = None
-        
         self.max_events = 0
         self.max_level_sum = 0
         self.max_opponent_level = 0
         self.seen_coords = set()
         self.seen_maps = set()
+        self.healing = 0
         self.total_healing = 0
         self.last_party_size = 1
         self.last_reward = None
-        self.last_hp = [0] * 6
+        self.last_hp = [1] * 6
+        self.hp = [0] * 6
+        self.hp_delta = [0] * 6
         self.death = 0
         self.qty = 0
         self.reset_count += 1
@@ -227,30 +203,42 @@ class Environment(Base):
         self.time += 1
         if self.save_video:
             self.add_video_frame()
+        
 
-    # Functions / Variables
-        r, c, map_n = ram_map.position(self.game)
-        party, party_size, party_levels = ram_map.party(self.game)
-        poke, type1, type2, level, hp, status = ram_map.pokemon(self.game)
-        self.seen_coords.add((r, c, map_n))
-        coord_reward = 0.01 * len(self.seen_coords)
-        badges = ram_map.badges(self.game)
+        if self.log:
+            self.full_name_log = Path(f'party_log').with_suffix('.txt')
+            self.full_name_csv = Path(f'position_csv').with_suffix('.csv')
+            self.write_to_log() 
 
     # Constants
-        map_check = set({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 41, 58, 64, 68, 89})
-        item_check = ({1, 2, 3, 4, 6, 11, 16, 17, 18, 19, 20, 41, 42, 72, 73, 196, 197, 198, 199, 200, 53, 54})
-        party_size_constant = party_size == self.last_party_size
-        level_rewards = []
+        pokecenters = [41, 58, 64, 68, 81, 89, 133, 141, 154, 171, 147, 182]
+        towns = set({1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+        item_check = [1, 2, 3, 4, 6, 11, 16, 17, 18, 19, 20, 41, 42, 72, 73, 196, 197, 198, 199, 200, 53, 54]
 
-    # Math
+    # Functions / Variables
         
-        # Save and Map
+        party, party_size, party_levels = ram_map.party(self.game)
+        party_size_constant = party_size == self.last_party_size
+        
+        
+
+    # Exploration
+        
+        # Map Reward
+        r, c, map_n = ram_map.position(self.game)
+        self.seen_coords.add((r, c, map_n))
         if map_n != self.prev_map_n:
             self.prev_map_n = map_n
-            if map_n not in self.seen_maps and map_n in map_check:
-                self.seen_maps.add(map_n)
-                # print(f'Map saved:', map_n)
+            if map_n not in self.seen_maps and map_n in pokecenters:
                 self.save_state()
+        if map_n not in self.seen_maps:
+            self.seen_maps.add(map_n)
+
+        coord_reward = 0.001 * len(self.seen_coords)
+        map_reward = 0.01 * len(self.seen_maps)
+        exploration_reward = coord_reward + map_reward
+
+        #Plot Map
 
         glob_r, glob_c = game_map.local_to_global(r, c, map_n)
         try:
@@ -258,37 +246,60 @@ class Environment(Base):
         except:
             pass
 
+    # Pokemon
+        poke, type1, type2, level, hp, status, death = ram_map.pokemon(self.game)
+        level_rewards = []
+
         #Levels
         for lvl in level:
-            if lvl < 15:
+            if lvl < 20:
                 level_reward = .5 * lvl
             else:
-                level_reward = 7.5 + (lvl - 15) / 4
+                level_reward = 7.5 + (lvl - 20) / 4
             level_rewards.append(level_reward)
-
-        # HP / Death
-        assert len(hp) == len(self.last_hp)
-        for h, i in zip(hp, self.last_hp):
-            hp_delta = h - i
-            if hp_delta > 0.25 and party_size_constant: #updated from 0 to 0.25
-                self.total_healing += hp_delta
-            if h <= 0 and i > 0:
-                self.death += 1
-            i = h
-
-    # Reward / Random Values
         lvl_rew = sum(level_rewards)
-        healing_reward = self.total_healing/party_size
         self.max_level_sum = sum(level)
-        death_reward = -0.01 * self.death
-        map_reward = 1.0 * len(self.seen_maps)
-        exploration_reward = coord_reward + map_reward
-        badges_reward = 5 * badges
+
+        # HP / Death    
+        self.hp = hp
+        assert len(self.hp) == len(self.last_hp)
+        for h, i in zip(self.hp, self.last_hp):
+        #     hp_delta = h - i
+        #     if hp_delta > 0.25 and party_size_constant: #updated from 0 to 0.25 to .50
+        #         self.total_healing += hp_delta
+        #     i = h
+        # self.death = sum(death)
+        #     # if h <= 0 and i > 0 and dead_delta > 0:
+        #     #     j = 1
+        #     # elif h > 0.01:
+        #     #     j = 0
+        #     # if (sum(hp)) <= 0 and (sum(self.last_hp)) > 0:
+            last_hp = i
+            cur_health = h
+            if (cur_health > last_hp and party_size_constant):
+                if last_hp > 0:
+                    heal_amount = cur_health - last_hp
+                    if heal_amount > 0.1:
+                        self.total_healing += heal_amount * 2
+                else:
+                    self.death += 1
+        self.last_hp = self.hp
+        healing_reward = self.total_healing 
+        death_reward = -1.0 * self.death
+
+        
 
     # Update Values
-        self.last_hp = hp
         self.last_party_size = party_size
         
+    # Badges
+        badges = ram_map.badges(self.game)
+        badges_reward = 5 * badges
+
+    # # Event reward
+        events = ram_map.events(self.game)
+        self.max_events = events
+        event_reward = self.max_events
 
     # Testing
         # # Items
@@ -306,33 +317,31 @@ class Environment(Base):
         # opponent_level_reward = 0.2 * self.max_opponent_level
 
 
-        # # Event reward
-        # events = ram_map.events(self.game)
-        # self.max_events = max(self.max_events, events)
-        # event_reward = self.max_events
+        
 
         # # money reward
         # money = ram_map.money(self.game)
 
         # sum reward
-        reward = self.reward_scale * (lvl_rew + death_reward + badges_reward + exploration_reward + healing_reward) # + healing_reward
-        reward1 = (lvl_rew + badges_reward + exploration_reward + healing_reward) # + healing_reward
+        reward = self.reward_scale * (lvl_rew + badges_reward + exploration_reward + healing_reward + event_reward) #  + death_reward
+        reward1 = (lvl_rew + badges_reward + exploration_reward + healing_reward + event_reward) # + healing_reward
         if death_reward == 0:
             neg_reward = 1
         else:
             neg_reward = death_reward
 
         # print rewards
-        if self.headless == False:
+        if self.headless == False or self.save_video == True:
             print(f'-------------Counter-------------')
             print(f'Steps:',self.time,)
             print(f'Sum Reward:',reward)
-            print(f'Events:',self.max_events)
+            print(f'Coords:',len(self.seen_maps))
             print(f'Total Level:',self.max_level_sum)
             print(f'Levels:',level)
             print(f'HP:',hp)
             print(f'Status:',status)
             print(f'Deaths:',self.death)
+            print(f'Is Dead:', death)
             print(f'Total Heal:',self.total_healing)
             print(f'Party Size:',self.last_party_size)
             print(f'-------------Rewards-------------')
@@ -341,7 +350,7 @@ class Environment(Base):
             print(f'Healing:',healing_reward,'--%',100 * (healing_reward/reward1))
             print(f'Badges:',badges_reward,'--%',100 * (badges_reward/reward1))
             print(f'Level:',lvl_rew,'--%',100 * (lvl_rew/reward1))
-            # print(f'Events:',event_reward,'--%',100 * (event_reward/reward1))
+            print(f'Events:',event_reward,'--%',100 * (event_reward/reward1))
             print(f'-------------Negatives-------------')
             print(f'Total:',neg_reward)
             print(f'Deaths:',death_reward, '--%', 100 * (death_reward/neg_reward))
@@ -373,11 +382,11 @@ class Environment(Base):
         done = self.time >= self.max_episode_steps
         if self.save_video and done:
             self.full_frame_writer.close()
-        if done:
+        if done: 
             info = {
                 'reward': {
                     'delta': reward,
-                    # 'event': event_reward,
+                    'event': event_reward,
                     'level': level_reward,
                     #'opponent_level': opponent_level_reward,
                     'death': death_reward,
@@ -390,10 +399,10 @@ class Environment(Base):
                 'highest_pokemon_level': max(party_levels),
                 'total_party_level': sum(party_levels),
                 'deaths': self.death,
-                'badge_1': float(badges == 1),
+                'badge_1': float(badges >= 1),
                 'badge_2': float(badges > 1),
-                # 'event': events,
-                # 'money': money,
+                'event': events,
+                'healing': self.total_healing,
                 'pokemon_exploration_map': self.counts_map,
             }
 
@@ -406,7 +415,7 @@ class Environment(Base):
                 f'death: {death_reward}',
                 #f'op_level: {opponent_level_reward}',
                 f'badges reward: {badges_reward}',
-                # f'event reward: {event_reward}',
+                f'event reward: {event_reward}',
                 # f'money: {money}',
                 f'ai reward: {reward}',
                 f'Info: {info}',
