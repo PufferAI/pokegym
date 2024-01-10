@@ -34,7 +34,7 @@ class Base:
     ):
         """Creates a PokemonRed environment"""
         if state_path is None:
-            state_path = __file__.rstrip("environment.py") + "States/has_pokedex_nballs.state" # "has_pokedex_nballs.state" or self.randstate 
+            state_path = STATE_PATH + "has_pokedex_nballs.state" # STATE_PATH + "has_pokedex_nballs.state" or self.randstate 
         with open("experiments/current_exp.txt", "r") as file:
             exp_name = file.read()
         R, C = self.screen.raw_screen_buffer_dims()
