@@ -5,7 +5,7 @@ import os
 
 from pokegym.pyboy_binding import (ACTIONS, make_env, open_state_file,
     load_pyboy_state, run_action_on_emulator)
-from pokegym import ram_map, game_map
+from pokegym import ram_map, game_map, data
 
 
 def play():
@@ -98,14 +98,17 @@ class Environment(Base):
     def __init__(self, rom_path='pokemon_red.gb',
             state_path=None, headless=True, quiet=False, verbose=False, **kwargs):
         super().__init__(rom_path, state_path, headless, quiet, **kwargs)
-        self.counts_map = np.zeros((444, 365))
+        self.counts_map = np.zeros((444, 436))
         self.verbose = verbose
+        self.reset_count = 0
 
-    def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
+    #def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
+    def reset(self, seed=None, options=None, max_episode_steps=2048, reward_scale=4.0):
         '''Resets the game. Seeding is NOT supported'''
         load_pyboy_state(self.game, self.initial_state)
 
         self.time = 0
+        self.reset_count += 1
         self.max_episode_steps = max_episode_steps
         self.reward_scale = reward_scale
          
@@ -205,6 +208,18 @@ class Environment(Base):
         info = {}
         done = self.time >= self.max_episode_steps
         if done:
+            pokemon_info = data.pokemon_l(self.game)
+            x, y ,map_n = ram_map.position(self.game)
+            reset = self.reset_count
+            pokemon = []
+            for p in pokemon_info:
+                pokemon.append({
+                    'slot': p['slot'],
+                    'name': p['name'],
+                    'level': p['level'],
+                    'moves': p['moves'],
+                })
+
             info = {
                 'reward': {
                     'delta': reward,
@@ -226,6 +241,11 @@ class Environment(Base):
                 'event': events,
                 'money': money,
                 'pokemon_exploration_map': self.counts_map,
+                'reset': reset,
+                'x': x,
+                'y': y,
+                'map': map_n,
+                'pokemon': pokemon,
             }
 
         if self.verbose:
