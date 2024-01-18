@@ -5,8 +5,6 @@ from pyboy import PyBoy
 from pyboy import logger
 from pyboy.utils import WindowEvent
 
-
-
 logger.logger.setLevel('ERROR')
 
 
@@ -58,7 +56,7 @@ def make_env(gb_path, headless=True, quiet=False, **kwargs):
     screen = game.botsupport_manager().screen()
 
     if not headless:
-        game.set_emulation_speed(10)
+        game.set_emulation_speed(6)
 
     return game, screen
 
