@@ -1,5 +1,8 @@
 # addresses from https://datacrystal.romhacking.net/wiki/Pok%C3%A9mon_Red/Blue:RAM_map
 # https://github.com/pret/pokered/blob/91dc3c9f9c8fd529bb6e8307b58b96efa0bec67e/constants/event_constants.asm
+from pokegym import data
+
+
 HP_ADDR = [0xD16C, 0xD198, 0xD1C4, 0xD1F0, 0xD21C, 0xD248]
 MAX_HP_ADDR = [0xD18D, 0xD1B9, 0xD1E5, 0xD211, 0xD23D, 0xD269]
 PARTY_SIZE_ADDR = 0xD163
@@ -36,13 +39,25 @@ PLAYER_X = 0xC106
 WNUMSPRITES = 0xD4E1
 WNUMSIGNS = 0xD4B0
 
+# Moves 1-4 for Poke1, Poke2, Poke3, Poke4, Poke5, Poke6
+MOVE1 = [0xD173, 0xD19F, 0xD1CB, 0xD1F7, 0xD223, 0xD24F]
+MOVE2 = [0xD174, 0xD1A0, 0xD1CC, 0xD1F8, 0xD224, 0xD250]
+MOVE3 = [0xD175, 0xD1A1, 0xD1CD, 0xD1F9, 0xD225, 0xD251]
+MOVE4 = [0xD176, 0xD1A2, 0xD1CE, 0xD1FA, 0xD226, 0xD252]
+POKE = [0xD16B, 0xD197, 0xD1C3, 0xD1EF, 0xD21B, 0xD247] # - Pokémon (Again)
+STATUS = [0xD16F, 0xD19B, 0xD1C7, 0xD1F3, 0xD21F, 0xD24B] # - Status (Poisoned, Paralyzed, etc.)
+TYPE1 = [0xD170, 0xD19C, 0xD1C8, 0xD1F4, 0xD220, 0xD24C] # - Type 1
+TYPE2 = [0xD171, 0xD19D, 0xD1C9, 0xD1F5, 0xD221, 0xD24D] # - Type 2
+LEVEL = [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268] # - Level (actual level)
+MAXHP = [0xD18D, 0xD1B9, 0xD1E5, 0xD211, 0xD23D, 0xD269] # - Max HP if = 01 + 256 to MAXHP2 value
+CHP = [0xD16C, 0xD198, 0xD1C4, 0xD1F0, 0xD21C, 0xD248] # - Current HP if = 01 + 256
+
+
 def bcd(num):
     return 10 * ((num >> 4) & 0x0F) + (num & 0x0F)
 
-
 def bit_count(bits):
     return bin(bits).count("1")
-
 
 def read_bit(game, addr, bit) -> bool:
     # add padding so zero will read '0b100000000' instead of '0b0'
@@ -58,6 +73,47 @@ def read_uint16(game, start_addr):
     val_1 = game.get_memory_value(start_addr + 1)
     return 256 * val_256 + val_1
 
+def pokemon(game):
+    # Get memory values from the list POKE and LEVEL
+    memory_values = [game.get_memory_value(a) for a in POKE]
+    levels = [game.get_memory_value(a) for a in LEVEL]
+
+    # Use memory values to get corresponding names from pokemon_data
+    names = [entry['name'] for entry in data.pokemon_data if entry.get('decimal') and int(entry['decimal']) in memory_values]
+
+    # Create an initial dictionary with names as keys and levels as values
+    party_dict = dict(zip(names, levels))
+
+    return party_dict
+
+def update_pokemon_level(pokemon_dict, pokemon_name, new_level):
+    if pokemon_name in pokemon_dict:
+        # Update the level for the specified Pokémon
+        pokemon_dict[pokemon_name] = new_level
+    else:
+        # Add a new entry for the Pokémon
+        pokemon_dict[pokemon_name] = new_level
+
+def get_hm_count(game):
+    hm_ids = [0xC4, 0xC5, 0xC6, 0xC7, 0xC8]
+    items = get_items_in_bag()
+    total_hm_cnt = 0
+    for hm_id in hm_ids:
+        if hm_id in items:
+            total_hm_cnt += 1
+    return total_hm_cnt
+
+def get_items_in_bag(game, one_indexed=0):
+    first_item = 0xD31E
+    item_names = []
+    for i in range(0, 20, 2):
+        item_id = game.get_memory_value(first_item + i)
+        if item_id == 0 or item_id == 0xff:
+            break
+        item_id_key = item_id + one_indexed
+        item_name = data.items_dict.get(item_id_key, {}).get('Item', f'Unknown Item {item_id_key}')
+        item_names.append(item_name)
+    return item_names
 
 def position(game):
     r_pos = game.get_memory_value(Y_POS_ADDR)
@@ -77,48 +133,38 @@ def position(game):
         map_n = -1
     return r_pos, c_pos, map_n
 
-
 def party(game):
     # party = [game.get_memory_value(addr) for addr in PARTY_ADDR]
     party_size = game.get_memory_value(PARTY_SIZE_ADDR)
-    party_levels = [game.get_memory_value(addr) for addr in PARTY_LEVEL_ADDR]
+    party_levels = [x for x in [game.get_memory_value(addr) for addr in PARTY_LEVEL_ADDR] if x > 0]
     return party_size, party_levels # [x for x in party_levels if x > 0]
-
 
 def opponent(game):
     return [game.get_memory_value(addr) for addr in OPPONENT_LEVEL_ADDR]
 
-
 def oak_parcel(game):
     return read_bit(game, OAK_PARCEL_ADDR, 1)
 
-
 def pokedex_obtained(game):
     return read_bit(game, OAK_POKEDEX_ADDR, 5)
-
 
 def pokemon_seen(game):
     seen_bytes = [game.get_memory_value(addr) for addr in SEEN_POKE_ADDR]
     return sum([bit_count(b) for b in seen_bytes])
 
-
 def pokemon_caught(game):
     caught_bytes = [game.get_memory_value(addr) for addr in CAUGHT_POKE_ADDR]
     return sum([bit_count(b) for b in caught_bytes])
-
 
 def hp(game):
     """Percentage of total party HP"""
     party_hp = [read_uint16(game, addr) for addr in HP_ADDR]
     party_max_hp = [read_uint16(game, addr) for addr in MAX_HP_ADDR]
-
     # Avoid division by zero if no pokemon
     sum_max_hp = sum(party_max_hp)
     if sum_max_hp == 0:
         return 1
-
     return sum(party_hp) / sum_max_hp
-
 
 def money(game):
     return (
@@ -127,11 +173,9 @@ def money(game):
         + bcd(game.get_memory_value(MONEY_ADDR_10000))
     )
 
-
 def badges(game):
     badges = game.get_memory_value(BADGE_1_ADDR)
     return bit_count(badges)
-
 
 def saved_bill(game):
     """Restored Bill from his experiment"""
@@ -142,7 +186,6 @@ def ss_anne_appeared(game):
     D803 - True is SS Anne is here
     """
     return game.get_memory_value(SS_ANNE)
-
 
 def events(game):
     """Adds up all event flags, exclude museum ticket"""
@@ -178,7 +221,6 @@ def is_in_battle(game):
 def if_font_is_loaded(game):
     return game.get_memory_value(IF_FONT_IS_LOADED)
 
-    # get information for player
 def player_direction(game):
     return game.get_memory_value(PLAYER_DIRECTION)
 

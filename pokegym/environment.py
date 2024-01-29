@@ -1,11 +1,9 @@
-import csv
 from pathlib import Path
 from pdb import set_trace as T
 import types
 import uuid
 from gymnasium import Env, spaces
 import numpy as np
-import pandas as pd
 from skimage.transform import resize
 
 from collections import defaultdict
@@ -25,65 +23,15 @@ from pokegym.pyboy_binding import (
 )
 from pokegym import ram_map, game_map, data
 
-
-def play():
-    """Creates an environment and plays it"""
-    env = Environment(
-        rom_path="pokemon_red.gb",
-        state_path=None,
-        headless=False,
-        disable_input=False,
-        sound=False,
-        sound_emulated=False,
-        verbose=True,
-    )
-
-    env.reset()
-    env.game.set_emulation_speed(0)
-
-    # Display available actions
-    print("Available actions:")
-    for idx, action in enumerate(ACTIONS):
-        print(f"{idx}: {action}")
-
-    # Create a mapping from WindowEvent to action index
-    window_event_to_action = {
-        "PRESS_ARROW_DOWN": 0,
-        "PRESS_ARROW_LEFT": 1,
-        "PRESS_ARROW_RIGHT": 2,
-        "PRESS_ARROW_UP": 3,
-        "PRESS_BUTTON_A": 4,
-        "PRESS_BUTTON_B": 5,
-        "PRESS_BUTTON_START": 6,
-        "PRESS_BUTTON_SELECT": 7,
-        # Add more mappings if necessary
-    }
-
-    while True:
-        # Get input from pyboy's get_input method
-        input_events = env.game.get_input()
-        env.game.tick()
-        env.render()
-        if len(input_events) == 0:
-            continue
-
-        for event in input_events:
-            event_str = str(event)
-            if event_str in window_event_to_action:
-                action_index = window_event_to_action[event_str]
-                observation, reward, done, _, info = env.step(
-                    action_index, fast_video=False
-                )
-
-                # Check for game over
-                if done:
-                    print(f"{done}")
-                    break
-
-                # Additional game logic or information display can go here
-                print(f"new Reward: {reward}\n")
-
 STATE_PATH = __file__.rstrip("environment.py") + "States/"
+
+def get_random_state():
+    state_files = [f for f in os.listdir(STATE_PATH) if f.endswith(".state")]
+    if not state_files:
+        raise FileNotFoundError("No State files found in the specified directory.")
+    return random.choice(state_files)
+state_file = get_random_state()
+randstate = os.path.join(STATE_PATH, state_file)
 
 class Base:
     def __init__(
@@ -98,9 +46,8 @@ class Base:
         """Creates a PokemonRed environment"""
         if state_path is None:
             state_path = STATE_PATH + "Bulbasaur.state" # STATE_PATH + "has_pokedex_nballs.state"
-        self.game, self.screen = make_env(rom_path, headless, quiet, save_video=False, **kwargs)
-
-        
+                # Make the environment
+        self.game, self.screen = make_env(rom_path, headless, quiet, save_video=True, **kwargs)
         self.initial_states = [open_state_file(state_path)]
         self.save_video = save_video
         self.headless = headless
@@ -113,9 +60,8 @@ class Base:
         self.video_path.mkdir(parents=True, exist_ok=True)
         self.csv_path = Path(f'./csv')
         self.csv_path.mkdir(parents=True, exist_ok=True)
-        self.reset_count = 0
+        self.reset_count = 0               
         self.explore_hidden_obj_weight = 1
-        self.csv = True
 
         R, C = self.screen.raw_screen_buffer_dims()
         self.obs_size = (R // 2, C // 2)
@@ -131,15 +77,19 @@ class Base:
             low=0, high=255, dtype=np.uint8, shape=self.obs_size
         )
         self.action_space = spaces.Discrete(len(ACTIONS))
+            
+    def init_hidden_obj_mem(self):
+        self.seen_hidden_objs = set()
     
     def save_screenshot(self, event, map_n):
         self.screenshot_counter += 1
         ss_dir = Path('screenshots')
         ss_dir.mkdir(exist_ok=True)
         plt.imsave(
+            # ss_dir / Path(f'ss_{x}_y_{y}_steps_{steps}_{comment}.jpeg'),
             ss_dir / Path(f'{self.screenshot_counter}_{event}_{map_n}.jpeg'),
             self.screen.screen_ndarray())  # (144, 160, 3)
-        
+
     def save_state(self):
         state = io.BytesIO()
         state.seek(0)
@@ -179,10 +129,13 @@ class Base:
     def render(self):
         if self.use_screen_memory:
             r, c, map_n = ram_map.position(self.game)
-
+            # Update tile map
             mmap = self.screen_memory[map_n]
             if 0 <= r <= 254 and 0 <= c <= 254:
                 mmap[r, c] = 255
+
+            # Downsamples the screen and retrieves a fixed window from mmap,
+            # then concatenates along the 3rd-dimensional axis (image channel)
             return np.concatenate(
                 (
                     self.screen.screen_ndarray()[::2, ::2],
@@ -203,14 +156,14 @@ class Base:
 
     def close(self):
         self.game.stop(False)
-        
+
 class Environment(Base):
     def __init__(
         self,
         rom_path="pokemon_red.gb",
         state_path=None,
         headless=True,
-        save_video=True,
+        save_video=False,
         quiet=False,
         verbose=False,
         **kwargs,
@@ -218,14 +171,25 @@ class Environment(Base):
         super().__init__(rom_path, state_path, headless, save_video, quiet, **kwargs)
         self.counts_map = np.zeros((444, 436))
         self.verbose = verbose
-        
+        self.screenshot_counter = 0
         self.include_conditions = []
+        self.seen_maps_difference = set()
+        self.current_maps = []
+        self.exclude_map_n = {37, 38, 39, 43, 52, 53, 55, 57}
+        self.exclude_map_n = set()
+        self.is_dead = False
+        self.talk_to_npc_reward = 0
         self.talk_to_npc_count = {}
+        self.already_got_npc_reward = set()
+        self.ss_anne_state = False
         self.seen_npcs = set()
         self.explore_npc_weight = 1
+        self.last_map = -1
+        self.init_hidden_obj_mem()
         self.seen_pokemon = np.zeros(152, dtype=np.uint8)
         self.caught_pokemon = np.zeros(152, dtype=np.uint8)
         self.moves_obtained = np.zeros(0xA5, dtype=np.uint8)
+        self.log = True
         
     def update_pokedex(self):
         for i in range(0xD30A - 0xD2F7):
@@ -233,17 +197,8 @@ class Environment(Base):
             seen_mem = self.game.get_memory_value(i + 0xD30A)
             for j in range(8):
                 self.caught_pokemon[8*i + j] = 1 if caught_mem & (1 << j) else 0
-                self.seen_pokemon[8*i + j] = 1 if seen_mem & (1 << j) else 0
-                
-    def write_to_csv(self):
-        x, y ,map_n = ram_map.position(self.game)
-        reset = self.reset_count
-        env_id = self.env_id
-        csv_file_path = Path(f'./csv/agent_position.csv')
-        with open(csv_file_path, 'a') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([env_id, reset, x, y, map_n])
-
+                self.seen_pokemon[8*i + j] = 1 if seen_mem & (1 << j) else 0   
+    
     def update_moves_obtained(self):
         # Scan party
         for i in [0xD16B, 0xD197, 0xD1C3, 0xD1EF, 0xD21B, 0xD247]:
@@ -263,27 +218,6 @@ class Environment(Base):
                     move_id = self.game.get_memory_value(offset + j + 8)
                     if move_id != 0:
                         self.moves_obtained[move_id] = 1
-    
-    def get_items_in_bag(self, one_indexed=0):
-        first_item = 0xD31E
-        item_names = []
-        for i in range(0, 20, 2):
-            item_id = self.game.get_memory_value(first_item + i)
-            if item_id == 0 or item_id == 0xff:
-                break
-            item_id_key = item_id + one_indexed
-            item_name = data.items_dict.get(item_id_key, {}).get('Item', f'Unknown Item {item_id_key}')
-            item_names.append(item_name)
-        return item_names
-    
-    def get_hm_rewards(self):
-        hm_ids = [0xC4, 0xC5, 0xC6, 0xC7, 0xC8]
-        items = self.get_items_in_bag()
-        total_hm_cnt = 0
-        for hm_id in hm_ids:
-            if hm_id in items:
-                total_hm_cnt += 1
-        return total_hm_cnt * 1
             
     def add_video_frame(self):
         self.full_frame_writer.add_image(self.video())
@@ -320,7 +254,7 @@ class Environment(Base):
 
         # Update last_map for the next iteration
         self.last_map = current_map
-        
+
     def find_neighboring_npc(self, npc_bank, npc_id, player_direction, player_x, player_y) -> int:
 
         npc_y = ram_map.npc_y(self.game, npc_id, npc_bank)
@@ -335,7 +269,7 @@ class Environment(Base):
             return abs(npc_y - player_y) + abs(npc_x - player_x)
 
         return 1000
-    
+        
     def rewardable_coords(self, glob_c, glob_r):
                 self.include_conditions = [
             # (80 >= glob_c >= 72) and (294 < glob_r <= 320),
@@ -422,9 +356,9 @@ class Environment(Base):
         load_pyboy_state(self.game, self.load_last_state())
         
         if self.save_video:
-            base_dir = self.video_path
+            base_dir = self.s_path
             base_dir.mkdir(parents=True, exist_ok=True)
-            full_name = Path(f'{self.env_id}_reset_{self.reset_count}').with_suffix('.mp4')
+            full_name = Path(f'reset_{self.reset_count}').with_suffix('.mp4')
             self.full_frame_writer = media.VideoWriter(base_dir / full_name, (144, 160), fps=60)
             self.full_frame_writer.__enter__()
 
@@ -432,22 +366,17 @@ class Environment(Base):
             self.screen_memory = defaultdict(
                 lambda: np.zeros((255, 255, 1), dtype=np.uint8)
             )
-        
+
         self.time = 0
         self.max_episode_steps = max_episode_steps
         self.reward_scale = reward_scale
         self.prev_map_n = None
-        #BET ADDED
+        self.init_hidden_obj_mem()
         self.max_events = 0
         self.max_level_sum = 0
         self.max_opponent_level = 0
-        self.seen_hidden_objs = set()
         self.seen_coords = set()
-        self.seen_maps = set()
-        ########################################################### Moved from Environment_Init()
-        self.is_dead = False
-        self.last_map = -1
-        #End
+        self.seen_maps = set() # np.zeros(256,dtype=np.uint8)
         self.death_count = 0
         self.total_healing = 0
         self.last_hp = 1.0
@@ -469,9 +398,6 @@ class Environment(Base):
         self.time += 1
         if self.save_video:
             self.add_video_frame()
-
-        if self.csv:
-            self.write_to_csv() 
         
         # Exploration reward
         r, c, map_n = ram_map.position(self.game)
@@ -495,18 +421,12 @@ class Environment(Base):
                 self.seen_maps.add(map_n)
                 self.talk_to_npc_count[map_n] = 0  # Initialize NPC talk count for this new map
                 self.save_state()
-                
      
         self.update_pokedex()
         self.update_moves_obtained()
-        # obs = self.render()
 
-        ############################################################### Added map_n into explore reward
-        coord_reward = 0.01 * len(self.seen_coords)
-        map_reward = 0.1 * len(self.seen_maps)
-        exploration_reward = coord_reward + map_reward
+        exploration_reward = 0.01 * len(self.seen_coords)
         self.update_heat_map(r, c, map_n)
-
 
         # Level reward
         party_size, party_levels = ram_map.party(self.game)
@@ -548,7 +468,7 @@ class Environment(Base):
         # Badge reward
         badges = ram_map.badges(self.game)
         badges_reward = 5 * badges
-        
+                
         # Save Bill
         bill_state = ram_map.saved_bill(self.game)
         bill_reward = 10 * bill_state
@@ -559,9 +479,9 @@ class Environment(Base):
             ss_anne_state_reward = 5
         else:
             ss_anne_state_reward = 0
-            
+    
         # HM reward
-        hm_count = self.get_hm_rewards()
+        hm_count = ram_map.get_hm_count()
         hm_reward = hm_count * 5
 
         # Event reward
@@ -572,18 +492,23 @@ class Environment(Base):
         # Money
         money = ram_map.money(self.game)
         
-
+        # Explore NPCs
+                # check if the font is loaded
         if ram_map.mem_val(self.game, 0xCFC4):
             # check if we are talking to a hidden object:
             if ram_map.mem_val(self.game, 0xCD3D) == 0x0 and ram_map.mem_val(self.game, 0xCD3E) == 0x0:
                 # add hidden object to seen hidden objects
                 self.seen_hidden_objs.add((ram_map.mem_val(self.game, 0xD35E), ram_map.mem_val(self.game, 0xCD3F)))
             else:
-
+                # check if we are talking to someone
+                # if ram_map.if_font_is_loaded(self.game):
+                    # get information for player
                 player_direction = ram_map.player_direction(self.game)
                 player_y = ram_map.player_y(self.game)
                 player_x = ram_map.player_x(self.game)
-
+                # get the npc who is closest to the player and facing them
+                # we go through all npcs because there are npcs like
+                # nurse joy who can be across a desk and still talk to you
                 mindex = (0, 0)
                 minv = 1000
                 for npc_bank in range(1):
@@ -595,6 +520,9 @@ class Environment(Base):
                             minv = npc_dist        
                 self.seen_npcs.add((ram_map.map_n(self.game), mindex[0], mindex[1]))
 
+                #change seen_npc to np.zeros(256*16, dtype=np.uint8) ^^ set seen_npc(map_n*16+mindex=1) to get length use np.sum()
+                #possibly do the same with hidden obj but some bs about not an even number so gg
+
         explore_npcs_reward = self.reward_scale * self.explore_npc_weight * len(self.seen_npcs) * 0.00015
         seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon) * 0.00010
         caught_pokemon_reward = self.reward_scale * sum(self.caught_pokemon) * 0.00010
@@ -603,19 +531,19 @@ class Environment(Base):
 
         reward = self.reward_scale * (
             event_reward
-            + explore_npcs_reward
+            + explore_npcs_reward # Doesn't reset on reset but maybe should?
             + seen_pokemon_reward
             + caught_pokemon_reward
             + moves_obtained_reward
-            + explore_hidden_objs_reward
+            + explore_hidden_objs_reward # Resets on reset
             + bill_reward
             + hm_reward
             + level_reward
-            # + opponent_level_reward
-            # + death_reward
+            + opponent_level_reward
+            + death_reward # Resets on reset
             + badges_reward
-            + healing_reward
-            + exploration_reward
+            + healing_reward # Resets each step
+            + exploration_reward # Resets on reset
         )
 
         # Subtract previous reward
@@ -635,7 +563,7 @@ class Environment(Base):
         if done:
             pokemon_info = data.pokemon_l(self.game)
             x, y ,map_n = ram_map.position(self.game)
-            items = self.get_items_in_bag()
+            items = ram_map.get_items_in_bag()
             reset = self.reset_count
             pokemon = []
             for p in pokemon_info:
@@ -666,7 +594,7 @@ class Environment(Base):
                     "moves_obtained_reward": moves_obtained_reward,
                     "hidden_obj_count_reward": explore_hidden_objs_reward,
                 },
-                "maps_explored": len(self.seen_maps),
+                "maps_explored": np.sum(self.seen_maps),
                 "party_size": party_size,
                 "highest_pokemon_level": max(party_levels),
                 "total_party_level": sum(party_levels),
@@ -686,25 +614,5 @@ class Environment(Base):
                 "hidden_obj_count": len(self.seen_hidden_objs),
                 "logging": pokemon,
             }
-
-        if self.verbose:
-            print(
-                f'number of signs: {ram_map.signs(self.game)}, number of sprites: {ram_map.sprites(self.game)}\n',
-                f"steps: {self.time}\n",
-                f"seen_npcs #: {len(self.seen_npcs)}\n",
-                f"seen_npcs set: {self.seen_npcs}\n",
-                # f"is_in_battle: {ram_map.is_in_battle(self.game)}",
-                f"exploration reward: {exploration_reward}\n",
-                f"explore_npcs reward: {explore_npcs_reward}\n",
-                f"level_Reward: {level_reward}\n",
-                f"healing: {healing_reward}\n",
-                f"death: {death_reward}\n",
-                f"op_level: {opponent_level_reward}\n",
-                f"badges reward: {badges_reward}\n",
-                f"event reward: {event_reward}\n",
-                f"money: {money}\n",
-                f"ai reward: {reward}\n",
-                f"Info: {info}\n",
-            )
         
         return self.render(), reward, done, done, info
