@@ -96,7 +96,7 @@ def update_pokemon_level(pokemon_dict, pokemon_name, new_level):
 
 def get_hm_count(game):
     hm_ids = [0xC4, 0xC5, 0xC6, 0xC7, 0xC8]
-    items = get_items_in_bag()
+    items = get_items_in_bag(game)
     total_hm_cnt = 0
     for hm_id in hm_ids:
         if hm_id in items:

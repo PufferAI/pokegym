@@ -23,6 +23,7 @@ from pokegym.pyboy_binding import (
 )
 from pokegym import ram_map, game_map, data
 
+
 STATE_PATH = __file__.rstrip("environment.py") + "States/"
 
 def get_random_state():
@@ -43,9 +44,11 @@ class Base:
         quiet=False,
         **kwargs,
     ):
+        self.state_file = get_random_state()
+        self.randstate = os.path.join(STATE_PATH, self.state_file)
         """Creates a PokemonRed environment"""
         if state_path is None:
-            state_path = STATE_PATH + "Bulbasaur.state" # STATE_PATH + "has_pokedex_nballs.state"
+            state_path = self.randstate # STATE_PATH + "has_pokedex_nballs.state"
                 # Make the environment
         self.game, self.screen = make_env(rom_path, headless, quiet, save_video=True, **kwargs)
         self.initial_states = [open_state_file(state_path)]
@@ -422,9 +425,8 @@ class Environment(Base):
                 self.talk_to_npc_count[map_n] = 0  # Initialize NPC talk count for this new map
                 self.save_state()
      
-        self.update_pokedex()
-        self.update_moves_obtained()
-
+        # map_reward = 0.1 * len(self.seen_maps)
+        # coord_reward = 0.01 len(self.seen_coords)
         exploration_reward = 0.01 * len(self.seen_coords)
         self.update_heat_map(r, c, map_n)
 
@@ -440,24 +442,16 @@ class Environment(Base):
         hp = ram_map.hp(self.game)
         hp_delta = hp - self.last_hp
         party_size_constant = party_size == self.last_party_size
-
-        # Only reward if not reviving at pokecenter
         if hp_delta > 0 and party_size_constant and not self.is_dead:
             self.total_healing += hp_delta
-
-        # Dead if hp is zero
         if hp <= 0 and self.last_hp > 0:
             self.death_count += 1
             self.is_dead = True
         elif hp > 0.01:  # TODO: Check if this matters
             self.is_dead = False
-
-        # Update last known values for next iteration
         self.last_hp = hp
         self.last_party_size = party_size
         death_reward = 0 # -0.08 * self.death_count  # -0.05
-        
-        # Set rewards
         healing_reward = self.total_healing
 
         # Opponent level reward
@@ -481,7 +475,7 @@ class Environment(Base):
             ss_anne_state_reward = 0
     
         # HM reward
-        hm_count = ram_map.get_hm_count()
+        hm_count = ram_map.get_hm_count(self.game)
         hm_reward = hm_count * 5
 
         # Event reward
@@ -491,7 +485,12 @@ class Environment(Base):
 
         # Money
         money = ram_map.money(self.game)
-        
+
+        # Misc
+        self.update_pokedex()
+        self.update_moves_obtained()
+
+    
         # Explore NPCs
                 # check if the font is loaded
         if ram_map.mem_val(self.game, 0xCFC4):
@@ -563,7 +562,7 @@ class Environment(Base):
         if done:
             pokemon_info = data.pokemon_l(self.game)
             x, y ,map_n = ram_map.position(self.game)
-            items = ram_map.get_items_in_bag()
+            items = ram_map.get_items_in_bag(self.game)
             reset = self.reset_count
             pokemon = []
             for p in pokemon_info:
