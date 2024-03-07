@@ -1,5 +1,10 @@
-# addresses from https://datacrystal.romhacking.net/wiki/Pok%C3%A9mon_Red/Blue:RAM_map
-# https://github.com/pret/pokered/blob/91dc3c9f9c8fd529bb6e8307b58b96efa0bec67e/constants/event_constants.asm
+# ######################################################################################
+#                                        Ram_map
+# ######################################################################################
+
+# Data Crystal - https://datacrystal.romhacking.net/wiki/Pok%C3%A9mon_Red/Blue:RAM_map
+# No Comments - https://github.com/pret/pokered/blob/91dc3c9f9c8fd529bb6e8307b58b96efa0bec67e/constants/event_constants.asm
+# Comments - https://github.com/luckytyphlosion/pokered/blob/master/constants/event_constants.asm
 from pokegym import data
 
 
@@ -101,9 +106,19 @@ def get_hm_count(game):
     for hm_id in hm_ids:
         if hm_id in items:
             total_hm_cnt += 1
-    return total_hm_cnt
+    return total_hm_cnt * 1
 
 def get_items_in_bag(game, one_indexed=0):
+    first_item = 0xD31E
+    item_ids = []
+    for i in range(0, 20, 2):
+        item_id = game.get_memory_value(first_item + i)
+        if item_id == 0 or item_id == 0xff:
+            break
+        item_ids.append(item_id + one_indexed)
+    return item_ids
+
+def get_items_names(game, one_indexed=0):
     first_item = 0xD31E
     item_names = []
     for i in range(0, 20, 2):
@@ -248,3 +263,135 @@ def sprites(game):
 
 def signs(game):
     return game.get_memory_value(WNUMSIGNS)
+
+def bill_capt(game):
+    met_bill = 5 * int(read_bit(game, 0xD7F1, 0))
+    used_cell_separator_on_bill = 5 * int(read_bit(game, 0xD7F2, 3))
+    ss_ticket = 5 * int(read_bit(game, 0xD7F2, 4))
+    met_bill_2 = 5 * int(read_bit(game, 0xD7F2, 5))
+    bill_said_use_cell_separator = 5 * int(read_bit(game, 0xD7F2, 6))
+    left_bills_house_after_helping = 5 * int(read_bit(game, 0xD7F2, 7))
+    got_hm01 = 5 * int(read_bit(game, 0xD803, 0))
+    rubbed_captains_back = 5 * int(read_bit(game, 0xD803, 1))
+    return sum([met_bill, used_cell_separator_on_bill, ss_ticket, met_bill_2, bill_said_use_cell_separator, left_bills_house_after_helping, got_hm01, rubbed_captains_back])
+
+# ##################################################################################################################
+#                                                     # Notes
+# ##################################################################################################################
+
+## Misc
+    # 0xc4f2 check for EE hex for text box arrow is present
+
+## Menu Data
+    # Coordinates of the position of the cursor for the top menu item (id 0)
+    # CC24 : Y position
+    # CC25 : X position
+    # CC26 - Currently selected menu item (topmost is 0)
+    # CC27 - Tile "hidden" by the menu cursor
+    # CC28 - ID of the last menu item
+    # CC29 - bitmask applied to the key port for the current menu
+    # CC2A - ID of the previously selected menu item
+    # CC2B - Last position of the cursor on the party / Bill's PC screen
+    # CC2C - Last position of the cursor on the item screen
+    # CC2D - Last position of the cursor on the START / battle menu
+    # CC2F - Index (in party) of the Pokémon currently sent out
+    # CC30~CC31 - Pointer to cursor tile in C3A0 buffer
+    # CC36 - ID of the first displayed menu item
+    # CC35 - Item highlighted with Select (01 = first item, 00 = no item, etc.)
+    # CC3A and CC3B are unused 
+    # cc51 and cc52 both read 00 when menu is closed 
+
+## Pokémon Mart
+    # JPN addr. 	INT addr. 	Description
+    # CF62 	    CF7B 	    Total Items
+    # CF63 	    CF7C 	    Item 1
+    # CF64 	    CF7D 	    Item 2
+    # CF65 	    CF7E 	    Item 3
+    # CF66 	    CF7F 	    Item 4
+    # CF67 	    CF80 	    Item 5
+    # CF68 	    CF81 	    Item 6
+    # CF69 	    CF82 	    Item 7
+    # CF70 	    CF83 	    Item 8
+    # CF71 	    CF84 	    Item 9
+    # CF72 	    CF85 	    Item 10 
+
+## Event Flags 
+    # D751 - Fought Giovanni Yet?
+    # D755 - Fought Brock Yet?
+    # D75E - Fought Misty Yet?
+    # D773 - Fought Lt. Surge Yet?
+    # D77C - Fought Erika Yet?
+    # D792 - Fought Koga Yet?
+    # D79A - Fought Blaine Yet?
+    # D7B3 - Fought Sabrina Yet?
+    # D782 - Fought Articuno Yet?
+    # D7D4 - Fought Zapdos Yet?
+    # D7EE - Fought Moltres Yet?
+    # D710 - Fossilized Pokémon?
+    # D7D8 - Fought Snorlax Yet (Vermilion)
+    # D7E0 - Fought Snorlax Yet? (Celadon)
+    # D803 - Is SS Anne here
+    # D5F3 - Have Town map?
+    # D60D - Have Oak's Parcel?
+    # D5A6 to D5C5 : Missable Objects Flags (flags for every (dis)appearing sprites, like the guard in Cerulean City or the Pokéballs in Oak's Lab)
+    # D5AB - Starters Back?
+    # D5C0(bit 1) - 0=Mewtwo appears, 1=Doesn't (See D85F)
+    # D700 - Bike Speed
+    # D70B - Fly Anywhere Byte 1
+    # D70C - Fly Anywhere Byte 2
+    # D70D - Safari Zone Time Byte 1
+    # D70E - Safari Zone Time Byte 2
+    # D714 - Position in Air
+    # D72E - Did you get Lapras Yet?
+    # D732 - Debug New Game
+    # D790 - If bit 7 is set, Safari Game over
+    # D85F - Mewtwo can be caught if bit 2 clear - Needs D5C0 bit 1 clear, too 
+
+## Item IDs & String
+    # 1, 2, 3, 4, 6, 11, 16, 17, 18, 19, 20, 41, 42, 72, 73, 196, 197, 198, 199, 200, 53, 54
+    # 001 	0x01 	Master Ball
+    # 002 	0x02 	Ultra Ball
+    # 003 	0x03 	Great Ball
+    # 004 	0x04 	Poké Ball
+    # 006 	0x06 	Bicycle
+    # 011 	0x0B 	Antidote
+    # 016 	0x10 	Full Restore
+    # 017 	0x11 	Max Potion
+    # 018 	0x12 	Hyper Potion
+    # 019 	0x13 	Super Potion
+    # 020 	0x14 	Potion
+    # 041 	0x29 	Dome Fossil
+    # 042 	0x2A 	Helix Fossil
+    # 072 	0x48 	Silph Scope
+    # 073 	0x49 	Poké Flute
+    # 196 	0xC4 	HM01
+    # 197 	0xC5 	HM02
+    # 198 	0xC6 	HM03
+    # 199 	0xC7 	HM04
+    # 200 	0xC8 	HM05
+    # 053 	0x35 	Revive
+    # 054 	0x36 	Max Revive
+
+## Item Bag
+    # 0xD31D - Total Items
+    # 0xD31E - Item 1
+    # 0xD320 - Item 2
+    # 0xD322 - Item 3
+    # 0xD324 - Item 4
+    # 0xD326 - Item 5
+    # 0xD328 - Item 6
+    # 0xD32A - Item 7
+    # 0xD32C - Item 8
+    # 0xD32E - Item 9
+    # 0xD330 - Item 10
+    # 0xD332 - Item 11
+    # 0xD334 - Item 12
+    # 0xD336 - Item 13
+    # 0xD338 - Item 14
+    # 0xD33A - Item 15
+    # 0xD33C - Item 16
+    # 0xD33E - Item 17
+    # 0xD340 - Item 18
+    # 0xD342 - Item 19
+    # 0xD344 - Item 20
+    # 0xD346 - Item End of List
