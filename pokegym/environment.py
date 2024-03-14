@@ -62,10 +62,6 @@ class Base:
         self.use_screen_memory = True
         self.screenshot_counter = 0
         self.env_id = Path(f'session_{str(uuid.uuid4())[:4]}')
-        self.video_path = Path(f'./videos')
-        self.video_path.mkdir(parents=True, exist_ok=True)
-        self.csv_path = Path(f'./csv')
-        self.csv_path.mkdir(parents=True, exist_ok=True)
         self.reset_count = 0               
         self.explore_hidden_obj_weight = 1
 
@@ -168,16 +164,8 @@ class Base:
         self.game.stop(False)
 
 class Environment(Base):
-    def __init__(
-        self,
-        rom_path="pokemon_red.gb",
-        state_path=None,
-        headless=True,
-        save_video=False,
-        quiet=False,
-        verbose=False,
-        **kwargs,
-    ):
+    def __init__(self,rom_path="pokemon_red.gb",state_path=None,headless=True,save_video=False,quiet=False,verbose=False,**kwargs,):
+
         super().__init__(rom_path, state_path, headless, save_video, quiet, **kwargs)
         self.counts_map = np.zeros((444, 436))
         self.death_count = 0
@@ -187,7 +175,8 @@ class Environment(Base):
         self.current_maps = []
         self.is_dead = False
         self.last_map = -1
-        self.log = True
+        self.log = False
+        self.seen_coords = set()
         self.map_check = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         
     def update_pokedex(self):
@@ -270,8 +259,10 @@ class Environment(Base):
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         """Resets the game. Seeding is NOT supported"""
-        if self.reset_count % 7 == 0: ## resets every 5 to 0 moved seen_coords to init
+        self.reset_count += 1
+        if self.reset_count % 5 == 0: ## resets every 5 to 0 moved seen_coords to init
             load_pyboy_state(self.game, self.load_first_state())
+            self.seen_coords = set()
         else:
             load_pyboy_state(self.game, self.load_last_state())
         
@@ -287,7 +278,6 @@ class Environment(Base):
                 lambda: np.zeros((255, 255, 1), dtype=np.uint8)
             )
 
-        self.reset_count += 1
         self.time = 0
         self.max_episode_steps = max_episode_steps
         self.reward_scale = reward_scale
@@ -297,7 +287,7 @@ class Environment(Base):
         self.max_events = 0
         self.max_level_sum = 0
         self.max_opponent_level = 0
-        self.seen_coords = set()
+        # self.seen_coords = set()
         self.seen_maps = set()
         self.total_healing = 0
         self.last_hp = 1.0
@@ -329,7 +319,7 @@ class Environment(Base):
         # Exploration reward
         r, c, map_n = ram_map.position(self.game)
         self.seen_coords.add((r, c, map_n))
-        exploration_reward = 0.02 * len(self.seen_coords)
+        exploration_reward = 0.01 * len(self.seen_coords)
 
         if map_n != self.prev_map_n:
             self.prev_map_n = map_n
@@ -341,9 +331,9 @@ class Environment(Base):
         party_size, party_levels = ram_map.party(self.game)
         self.max_level_sum = max(self.max_level_sum, sum(party_levels))
         if self.max_level_sum < 30:
-            level_reward = 1 * self.max_level_sum
+            level_reward = .5 * self.max_level_sum
         else:
-            level_reward = 30 + (self.max_level_sum - 30) / 4
+            level_reward = 15 + (self.max_level_sum - 30) / 4
             
         # Healing and death rewards
         hp = ram_map.hp(self.game)
@@ -416,26 +406,22 @@ class Environment(Base):
                     self.cut_coords[coords] = 10
                     self.cut_tiles[self.cut_state[-1][0]] = 1
                 elif self.cut_state == CUT_GRASS_SEQ:
-                    self.cut_coords[coords] = 0.01
+                    self.cut_coords[coords] = 0.001
                     self.cut_tiles[self.cut_state[-1][0]] = 1
                 elif deque([(-1, *elem[1:]) for elem in self.cut_state]) == CUT_FAIL_SEQ:
-                    self.cut_coords[coords] = 0.01
+                    self.cut_coords[coords] = 0.001
                     self.cut_tiles[self.cut_state[-1][0]] = 1
 
 
                 if int(ram_map.read_bit(self.game, 0xD803, 0)):
                     if self.check_if_in_start_menu():
                         self.seen_start_menu = 1
-
                     if self.check_if_in_pokemon_menu():
                         self.seen_pokemon_menu = 1
-
                     if self.check_if_in_stats_menu():
                         self.seen_stats_menu = 1
-
                     if self.check_if_in_bag_menu():
                         self.seen_bag_menu = 1
-
                     if self.check_if_cancel_bag_menu(action):
                         self.seen_cancel_bag_menu = 1
 
@@ -457,13 +443,11 @@ class Environment(Base):
         # "cancel_bag_menu": self.seen_cancel_bag_menu * 0.1,
         cut_coords = sum(self.cut_coords.values()) * 1.0
         cut_tiles = len(self.cut_tiles) * 1.0
-        seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon)
-        caught_pokemon_reward = self.reward_scale * sum(self.caught_pokemon)
-        moves_obtained_reward = self.reward_scale * sum(self.moves_obtained)
-        
         that_guy = (start_menu + pokemon_menu + stats_menu + bag_menu + cut_coords + cut_tiles)
     
-
+        seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon) * 0.00010
+        caught_pokemon_reward = self.reward_scale * sum(self.caught_pokemon) * 0.00010
+        moves_obtained_reward = self.reward_scale * sum(self.moves_obtained) * 0.00010
 
         reward = self.reward_scale * (
             event_reward
@@ -481,6 +465,8 @@ class Environment(Base):
             + cut_rew
             + that_guy
             + used_cut_rew
+            + cut_coords 
+            + cut_tiles
         )
 
         # Subtract previous reward
@@ -498,6 +484,7 @@ class Environment(Base):
         if self.save_video and done:
             self.full_frame_writer.close()
         if done:
+            self.save_state()
             info = {
                 "reward": {
                     "delta": reward,
