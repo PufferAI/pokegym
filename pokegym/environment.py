@@ -175,8 +175,8 @@ class Environment(Base):
         self.current_maps = []
         self.is_dead = False
         self.last_map = -1
-        self.log = False
-        self.seen_coords = set()
+        self.log = True
+        # self.seen_coords = set()
         self.map_check = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         
     def update_pokedex(self):
@@ -260,11 +260,11 @@ class Environment(Base):
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         """Resets the game. Seeding is NOT supported"""
         self.reset_count += 1
-        if self.reset_count % 5 == 0: ## resets every 5 to 0 moved seen_coords to init
-            load_pyboy_state(self.game, self.load_first_state())
-            self.seen_coords = set()
-        else:
-            load_pyboy_state(self.game, self.load_last_state())
+        # if self.reset_count % 5 == 0: ## resets every 5 to 0 moved seen_coords to init
+        #     load_pyboy_state(self.game, self.load_first_state())
+        #     self.seen_coords = set()
+        # else:
+        load_pyboy_state(self.game, self.load_last_state())
         
         if self.save_video:
             base_dir = self.s_path
@@ -287,7 +287,7 @@ class Environment(Base):
         self.max_events = 0
         self.max_level_sum = 0
         self.max_opponent_level = 0
-        # self.seen_coords = set()
+        self.seen_coords = set()
         self.seen_maps = set()
         self.total_healing = 0
         self.last_hp = 1.0
@@ -319,8 +319,7 @@ class Environment(Base):
         # Exploration reward
         r, c, map_n = ram_map.position(self.game)
         self.seen_coords.add((r, c, map_n))
-        self.seen_maps.add(map_n)
-        exploration_reward = (len(self.seen_coords) * 0.2)#  + (len(self.seen_maps) * 2) 
+        exploration_reward = 0.02 * len(self.seen_coords)
 
         #############################################################################################
         
@@ -504,6 +503,7 @@ class Environment(Base):
                 "badge_1": float(badges >= 1),
                 "badge_2": float(badges >= 2),
                 "badge_3": float(badges >= 3),
+                "badges": float(badges),
                 "event": events,
                 "maps_explored": np.sum(self.seen_maps),
                 "party_size": party_size,
