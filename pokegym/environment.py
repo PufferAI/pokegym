@@ -319,21 +319,20 @@ class Environment(Base):
         # Exploration reward
         r, c, map_n = ram_map.position(self.game)
         self.seen_coords.add((r, c, map_n))
-        exploration_reward = 0.01 * len(self.seen_coords)
+        self.seen_maps.add(map_n)
+        exploration_reward = (len(self.seen_coords) * 0.2)#  + (len(self.seen_maps) * 2) 
 
-        if map_n != self.prev_map_n:
-            self.prev_map_n = map_n
-            if map_n not in self.seen_maps:
-                self.seen_maps.add(map_n)
-                self.save_state()
+        #############################################################################################
+        
+        #############################################################################################
 
         # Level reward
         party_size, party_levels = ram_map.party(self.game)
         self.max_level_sum = max(self.max_level_sum, sum(party_levels))
-        if self.max_level_sum < 30:
-            level_reward = .5 * self.max_level_sum
+        if self.max_level_sum < 15:
+            level_reward = 1 * self.max_level_sum
         else:
-            level_reward = 15 + (self.max_level_sum - 30) / 4
+            level_reward = 15 + (self.max_level_sum - 15) / 4
             
         # Healing and death rewards
         hp = ram_map.hp(self.game)
@@ -443,12 +442,12 @@ class Environment(Base):
         # "cancel_bag_menu": self.seen_cancel_bag_menu * 0.1,
         cut_coords = sum(self.cut_coords.values()) * 1.0
         cut_tiles = len(self.cut_tiles) * 1.0
-        that_guy = (start_menu + pokemon_menu + stats_menu + bag_menu + cut_coords + cut_tiles)
+        seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon)
+        caught_pokemon_reward = self.reward_scale * sum(self.caught_pokemon)
+        moves_obtained_reward = self.reward_scale * sum(self.moves_obtained)
+        
+        that_guy = (start_menu + pokemon_menu + stats_menu + bag_menu ) / 2
     
-        seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon) * 0.00010
-        caught_pokemon_reward = self.reward_scale * sum(self.caught_pokemon) * 0.00010
-        moves_obtained_reward = self.reward_scale * sum(self.moves_obtained) * 0.00010
-
         reward = self.reward_scale * (
             event_reward
             + bill_capt_rew
