@@ -43,6 +43,7 @@ PLAYER_Y = 0xC104
 PLAYER_X = 0xC106
 WNUMSPRITES = 0xD4E1
 WNUMSIGNS = 0xD4B0
+WCUTTILE = 0xCD4D # 61 if Cut used; 0 default. resets to default on map_n change or battle.
 
 # Moves 1-4 for Poke1, Poke2, Poke3, Poke4, Poke5, Poke6
 MOVE1 = [0xD173, 0xD19F, 0xD1CB, 0xD1F7, 0xD223, 0xD24F]
@@ -275,6 +276,12 @@ def bill_capt(game):
     rubbed_captains_back = 5 * int(read_bit(game, 0xD803, 1))
     return sum([met_bill, used_cell_separator_on_bill, ss_ticket, met_bill_2, bill_said_use_cell_separator, left_bills_house_after_helping, got_hm01, rubbed_captains_back])
 
+def used_cut(game):
+    return game.get_memory_value(WCUTTILE)
+
+def write_mem(game, addr, value):
+    mem = game.set_memory_value(addr, value)
+    return mem
 # ##################################################################################################################
 #                                                     # Notes
 # ##################################################################################################################
