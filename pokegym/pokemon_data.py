@@ -344,3 +344,11 @@ moves_dict = {
     164: {'Name': 'Substitute', 'Type': 'Normal', 'Category': 'Status', 'Power': 10},
     165: {'Name': 'Struggle', 'Type': 'Normal', 'Category': 'Physical', 'Power': 1, 'PP': 50}
 }
+
+IGNORED_EVENT_IDS = [
+    30,  # enter town map house
+    29,  # leave town map house
+    111,  # museum ticket
+    1314,  # route 22 first rival battle
+    1016,  # magikrap trade in Mt Moon Pokecenter
+]

@@ -6,14 +6,14 @@ from gymnasium import Env, spaces
 import numpy as np
 from skimage.transform import resize
 
-from collections import defaultdict
+from collections import defaultdict, deque
 import io, os
 import random
+from pyboy.utils import WindowEvent
 
 import matplotlib.pyplot as plt
 from pathlib import Path
 import mediapy as media
-import subprocess
 
 from pokegym.pyboy_binding import (
     ACTIONS,
@@ -22,96 +22,59 @@ from pokegym.pyboy_binding import (
     load_pyboy_state,
     run_action_on_emulator,
 )
-from pokegym import ram_map, game_map
+from . import ram_map, game_map, data
+import subprocess
+import multiprocessing
+import time
+from multiprocessing import Manager
 
-# def debug_nice(locals_dict, keys=[]):
-#     globals()['types'] = __import__('types')
-#     exclude_keys = ['copyright', 'credits', 'False', 
-#                     'True', 'None', 'Ellipsis', 'quit']
-#     exclude_valuetypes = [types.BuiltinFunctionType,
-#                           types.BuiltinMethodType,
-#                           types.ModuleType,
-#                           types.FunctionType]
-#     return {k: v for k,v in locals_dict.items() if not
-#                (k in keys or
-#                 k in exclude_keys or
-#                 type(v) in exclude_valuetypes) and
-#                k[0] != '_'}
 
-def play():
-    """Creates an environment and plays it"""
-    env = Environment(
-        rom_path="pokemon_red.gb",
-        state_path=None,
-        headless=False,
-        disable_input=False,
-        sound=False,
-        sound_emulated=False,
-        verbose=True,
-    )
-
-    env.reset()
-    env.game.set_emulation_speed(0)
-
-    # Display available actions
-    print("Available actions:")
-    for idx, action in enumerate(ACTIONS):
-        print(f"{idx}: {action}")
-
-    # Create a mapping from WindowEvent to action index
-    window_event_to_action = {
-        "PRESS_ARROW_DOWN": 0,
-        "PRESS_ARROW_LEFT": 1,
-        "PRESS_ARROW_RIGHT": 2,
-        "PRESS_ARROW_UP": 3,
-        "PRESS_BUTTON_A": 4,
-        "PRESS_BUTTON_B": 5,
-        "PRESS_BUTTON_START": 6,
-        "PRESS_BUTTON_SELECT": 7,
-        # Add more mappings if necessary
-    }
-
-    while True:
-        # Get input from pyboy's get_input method
-        input_events = env.game.get_input()
-        env.game.tick()
-        env.render()
-        if len(input_events) == 0:
-            continue
-
-        for event in input_events:
-            event_str = str(event)
-            if event_str in window_event_to_action:
-                action_index = window_event_to_action[event_str]
-                observation, reward, done, _, info = env.step(
-                    action_index, fast_video=False
-                )
-
-                # Check for game over
-                if done:
-                    print(f"{done}")
-                    break
-
-                # Additional game logic or information display can go here
-                print(f"new Reward: {reward}\n")
-
+STATE_PATH = __file__.rstrip("environment.py") + "current_state/"
+CUT_GRASS_SEQ = deque([(0x52, 255, 1, 0, 1, 1), (0x52, 255, 1, 0, 1, 1), (0x52, 1, 1, 0, 1, 1)])
+CUT_FAIL_SEQ = deque([(-1, 255, 0, 0, 4, 1), (-1, 255, 0, 0, 1, 1), (-1, 255, 0, 0, 1, 1)])
+CUT_SEQ = [((0x3D, 1, 1, 0, 4, 1), (0x3D, 1, 1, 0, 1, 1)), ((0x50, 1, 1, 0, 4, 1), (0x50, 1, 1, 0, 1, 1)),]
+def get_random_state():
+    state_files = [f for f in os.listdir(STATE_PATH) if f.endswith(".state")]
+    if not state_files:
+        raise FileNotFoundError("No State files found in the specified directory.")
+    return random.choice(state_files)
+state_file = get_random_state()
+randstate = os.path.join(STATE_PATH, state_file)
 
 class Base:
+    # Shared counter among processes
+    counter_lock = multiprocessing.Lock()
+    counter = multiprocessing.Value('i', 0)
+    
+    # Initialize a shared integer with a lock for atomic updates
+    shared_length = multiprocessing.Value('i', 0)  # 'i' for integer
+    lock = multiprocessing.Lock()  # Lock to synchronize access
+    
+    # Initialize a Manager for shared BytesIO object
+    manager = Manager()
+    shared_bytes_io_data = manager.list([b''])  # Holds serialized BytesIO data
+    
     def __init__(
         self,
         rom_path="pokemon_red.gb",
         state_path=None,
         headless=True,
-        save_video=True,
+        save_video=False,
         quiet=False,
         **kwargs,
     ):
+        # Increment counter atomically to get unique sequential identifier
+        with Base.counter_lock:
+            env_id = Base.counter.value
+            Base.counter.value += 1
+            
+        self.state_file = get_random_state()
+        self.randstate = os.path.join(STATE_PATH, self.state_file)
         """Creates a PokemonRed environment"""
         if state_path is None:
-            state_path = __file__.rstrip("environment.py") + "Bulbasaur.state"
-            # state_path = "/home/daa/puffer0.5.2_iron/bill/pokegym/pokegym/current_state/has_pokedex_nballs.state" # .rstrip("environment.py") + "has_pokedex_nballs.state"
+            state_path = STATE_PATH + "Bulbasaur.state" # STATE_PATH + "has_pokedex_nballs.state"
                 # Make the environment
-        self.game, self.screen = make_env(rom_path, headless, quiet, save_video=True, **kwargs)
+        self.game, self.screen = make_env(rom_path, headless, quiet, save_video=False, **kwargs)
         self.initial_states = [open_state_file(state_path)]
         self.save_video = save_video
         self.headless = headless
@@ -119,13 +82,24 @@ class Base:
         self.memory_shape = 80
         self.use_screen_memory = True
         self.screenshot_counter = 0
-        self.s_path = Path(f'session_{str(uuid.uuid4())[:8]}')
-        self.instance_id = str(uuid.uuid4())[:8]
-        self.reset_count = 0               
+        
+        # Logging initializations
+        with open("experiments/running_experiment.txt", "r") as file:
+        # with open("experiments/test_exp.txt", "r") as file: # for testing video writing BET
+            exp_name = file.read()
+        self.exp_path = Path(f'experiments/{str(exp_name)}')
+        self.env_id = env_id
+        self.s_path = Path(f'{str(self.exp_path)}/sessions/{str(self.env_id)}')
+        # self.env_id = Path(f'session_{str(uuid.uuid4())[:4]}')
+        self.video_path = Path(f'./videos')
+        self.video_path.mkdir(parents=True, exist_ok=True)
+        self.csv_path = Path(f'./csv')
+        self.csv_path.mkdir(parents=True, exist_ok=True)
+        self.reset_count = 0
         self.explore_hidden_obj_weight = 1
 
         R, C = self.screen.raw_screen_buffer_dims()
-        self.obs_size = (R // 2, C // 2)
+        self.obs_size = (R // 2, C // 2) # 72, 80, 3
 
         if self.use_screen_memory:
             self.screen_memory = defaultdict(
@@ -138,9 +112,6 @@ class Base:
             low=0, high=255, dtype=np.uint8, shape=self.obs_size
         )
         self.action_space = spaces.Discrete(len(ACTIONS))
-            
-    def init_hidden_obj_mem(self):
-        self.seen_hidden_objs = set()
     
     def save_screenshot(self, event, map_n):
         self.screenshot_counter += 1
@@ -155,10 +126,18 @@ class Base:
         state = io.BytesIO()
         state.seek(0)
         self.game.save_state(state)
+        current_map_n = ram_map.map_n
         self.initial_states.append(state)
     
     def load_last_state(self):
         return self.initial_states[len(self.initial_states) - 1]
+    
+    def load_first_state(self):
+        return self.initial_states[0]
+    
+    def load_random_state(self):
+        rand_idx = random.randint(0, len(self.initial_states) - 1)
+        return self.initial_states[rand_idx]
 
     def reset(self, seed=None, options=None):
         """Resets the game. Seeding is NOT supported"""
@@ -218,29 +197,39 @@ class Base:
     def close(self):
         self.game.stop(False)
 
+    def init_hidden_obj_mem(self):
+        self.seen_hidden_objs = set()
+    
+
 class Environment(Base):
     def __init__(
         self,
         rom_path="pokemon_red.gb",
         state_path=None,
         headless=True,
-        save_video=True,
+        save_video=False,
         quiet=False,
         verbose=False,
         **kwargs,
     ):
         super().__init__(rom_path, state_path, headless, save_video, quiet, **kwargs)
         self.counts_map = np.zeros((444, 436))
+        self.death_count = 0
         self.verbose = verbose
         self.screenshot_counter = 0
         self.include_conditions = []
         self.seen_maps_difference = set()
-        self.seen_maps = 0
         self.current_maps = []
-        self.exclude_map_n = {37, 38, 39, 43, 52, 53, 55, 57}
-        self.exclude_map_n = set()
-        # self.exclude_map_n_moon = {0, 1, 2, 12, 13, 14, 15, 33, 34, 37, 38, 39, 40, 41, 42, 43, 44, 47, 50, 51, 52, 53, 54, 55, 56, 57, 58, 193, 68}
+        self.talk_to_npc_reward = 0
+        self.talk_to_npc_count = {}
+        self.already_got_npc_reward = set()
+        self.ss_anne_state = False
+        self.seen_npcs = set()
+        self.explore_npc_weight = 1
         self.is_dead = False
+        self.last_map = -1
+        self.log = True
+        self.map_check = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         self.talk_to_npc_reward = 0
         self.talk_to_npc_count = {}
         self.already_got_npc_reward = set()
@@ -252,7 +241,39 @@ class Environment(Base):
         self.seen_pokemon = np.zeros(152, dtype=np.uint8)
         self.caught_pokemon = np.zeros(152, dtype=np.uint8)
         self.moves_obtained = np.zeros(0xA5, dtype=np.uint8)
-        self.log = True
+        self.log = False
+        self.pokecenter_ids = [0x01, 0x02, 0x03, 0x0F, 0x15, 0x05, 0x06, 0x04, 0x07, 0x08, 0x0A, 0x09]
+        self.visited_pokecenter_list = []
+        self._all_events_string = ''
+        self.used_cut_coords_dict = {}
+        self.rewarded_coords = set()
+        self.rewarded_position = (0, 0)
+        # self.seen_coords = set() ## moved from reset
+
+        # #for reseting at 7
+        # self.prev_map_n = None
+        # self.max_events = 0
+        # self.max_level_sum = 0
+        self.max_opponent_level = 0
+        # self.seen_coords = set()
+        # self.seen_maps = set()
+        # self.total_healing = 0
+        # self.last_hp = 1.0
+        # self.last_party_size = 1
+        # self.hm_count = 0
+        # self.cut = 0
+        # self.used_cut = 0
+        # self.cut_coords = {}
+        # self.cut_tiles = {} # set([])
+        # self.cut_state = deque(maxlen=3)
+        # self.seen_start_menu = 0
+        # self.seen_pokemon_menu = 0
+        # self.seen_stats_menu = 0
+        # self.seen_bag_menu = 0
+        # self.seen_cancel_bag_menu = 0
+        # self.seen_pokemon = np.zeros(152, dtype=np.uint8)
+        # self.caught_pokemon = np.zeros(152, dtype=np.uint8)
+        # self.moves_obtained = np.zeros(0xA5, dtype=np.uint8)
         
     def update_pokedex(self):
         for i in range(0xD30A - 0xD2F7):
@@ -271,6 +292,8 @@ class Environment(Base):
                     if move_id != 0:
                         if move_id != 0:
                             self.moves_obtained[move_id] = 1
+                        if move_id == 15:
+                            self.cut = 1
         # Scan current box (since the box doesn't auto increment in pokemon red)
         num_moves = 4
         box_struct_length = 25 * num_moves * 2
@@ -281,7 +304,6 @@ class Environment(Base):
                     move_id = self.game.get_memory_value(offset + j + 8)
                     if move_id != 0:
                         self.moves_obtained[move_id] = 1
-    
     def get_items_in_bag(self, one_indexed=0):
         first_item = 0xD31E
         # total 20 items
@@ -294,21 +316,23 @@ class Environment(Base):
             item_ids.append(item_id + one_indexed)
         return item_ids
     
-    def write_to_log(self):
-        # Get the Pokémon information
+    def poke_count_hms(self):
         pokemon_info = ram_map.pokemon_l(self.game)
-        base_dir = self.s_path
-        base_dir.mkdir(parents=True, exist_ok=True)
-        # Open the log file in write mode
-        with open(base_dir / self.full_name_log, 'w') as f:
-            # Iterate over each Pokémon
-            for pokemon in pokemon_info:
-                # Write the Pokémon information to the file
-                f.write(f"Slot: {pokemon['slot']}\n")
-                f.write(f"Name: {pokemon['name']}\n")
-                f.write(f"Level: {pokemon['level']}\n")
-                f.write(f"Moves: {', '.join(pokemon['moves'])}\n")
-                f.write("\n")  # Add a newline between Pokémon
+        pokes_hm_counts = {
+            'Cut': 0,
+            'Flash': 0,
+            'Fly': 0,
+            'Surf': 0,
+            'Strength': 0,
+        }
+        for pokemon in pokemon_info:
+            moves = pokemon['moves']
+            pokes_hm_counts['Cut'] += 'Cut' in moves
+            pokes_hm_counts['Flash'] += 'Flash' in moves
+            pokes_hm_counts['Fly'] += 'Fly' in moves
+            pokes_hm_counts['Surf'] += 'Surf' in moves
+            pokes_hm_counts['Strength'] += 'Strength' in moves
+        return pokes_hm_counts
     
     def get_hm_rewards(self):
         hm_ids = [0xC4, 0xC5, 0xC6, 0xC7, 0xC8]
@@ -321,7 +345,31 @@ class Environment(Base):
             
     def add_video_frame(self):
         self.full_frame_writer.add_image(self.video())
-             
+
+    def get_game_coords(self):
+        return (ram_map.mem_val(self.game, 0xD362), ram_map.mem_val(self.game, 0xD361), ram_map.mem_val(self.game, 0xD35E))
+    
+    def check_if_in_start_menu(self) -> bool:
+        return (
+            ram_map.mem_val(self.game, 0xD057) == 0
+            and ram_map.mem_val(self.game, 0xCF13) == 0
+            and ram_map.mem_val(self.game, 0xFF8C) == 6
+            and ram_map.mem_val(self.game, 0xCF94) == 0
+        )
+
+    def check_if_in_pokemon_menu(self) -> bool:
+        return (
+            ram_map.mem_val(self.game, 0xD057) == 0
+            and ram_map.mem_val(self.game, 0xCF13) == 0
+            and ram_map.mem_val(self.game, 0xFF8C) == 6
+            and ram_map.mem_val(self.game, 0xCF94) == 2
+        )
+
+    def check_if_in_stats_menu(self) -> bool:
+        return (
+            ram_map.mem_val(self.game, 0xD057) == 0
+            and ram_map.mem_val(self.game, 0xCF13) == 0)
+            
     def update_heat_map(self, r, c, current_map):
         '''
         Updates the heat map based on the agent's current position.
@@ -355,42 +403,51 @@ class Environment(Base):
         # Update last_map for the next iteration
         self.last_map = current_map
 
-    def find_neighboring_npc(self, npc_id, player_direction, player_x, player_y) -> int:
+    def check_if_in_bag_menu(self) -> bool:
+        return (
+            ram_map.mem_val(self.game, 0xD057) == 0
+            and ram_map.mem_val(self.game, 0xCF13) == 0
+            # and ram_map.mem_val(self.game, 0xFF8C) == 6 # only sometimes
+            and ram_map.mem_val(self.game, 0xCF94) == 3
+        )
 
-        npc_y = ram_map.npc_y(self.game, npc_id)
-        npc_x = ram_map.npc_x(self.game, npc_id)
-        # Check if player is facing the NPC (skip NPC direction)
-        # 0 - down, 4 - up, 8 - left, 0xC - right
-        if (
-            (player_direction == 0 and npc_x == player_x and npc_y > player_y) or
-            (player_direction == 4 and npc_x == player_x and npc_y < player_y) or
-            (player_direction == 8 and npc_y == player_y and npc_x < player_x) or
-            (player_direction == 0xC and npc_y == player_y and npc_x > player_x)
-        ):
-            # Manhattan distance
-            return abs(npc_y - player_y) + abs(npc_x - player_x)
+    def check_if_cancel_bag_menu(self, action) -> bool:
+        return (
+            action == WindowEvent.PRESS_BUTTON_A
+            and ram_map.mem_val(self.game, 0xD057) == 0
+            and ram_map.mem_val(self.game, 0xCF13) == 0
+            # and ram_map.mem_val(self.game, 0xFF8C) == 6
+            and ram_map.mem_val(self.game, 0xCF94) == 3
+            and ram_map.mem_val(self.game, 0xD31D) == ram_map.mem_val(self.game, 0xCC36) + ram_map.mem_val(self.game, 0xCC26)
+        )
+        
+    def update_reward(self, new_position):
+        """
+        Update and determine if the new_position should be rewarded based on every 10 steps
+        taken within the same map considering the Manhattan distance.
 
-        return 1000
-    
-    
-    def find_neighboring_sign(self, sign_id, player_direction, player_x, player_y) -> bool:
+        :param new_position: Tuple (glob_r, glob_c, map_n) representing the new global position and map identifier.
+        """
+        should_reward = False
+        new_glob_r, new_glob_c, new_map_n = new_position
 
-            sign_y = ram_map.mem_val(self.game, (0xD4B0 + (2 * sign_id)))
-            sign_x = ram_map.mem_val(self.game, (0xD4B0 + (2 * sign_id + 1)))
+        # Check if the new position should be rewarded compared to existing positions on the same map
+        for rewarded_position in self.rewarded_coords:
+            rewarded_glob_r, rewarded_glob_c, rewarded_map_n = rewarded_position
+            if new_map_n == rewarded_map_n:
+                distance = abs(rewarded_glob_r - new_glob_r) + abs(rewarded_glob_c - new_glob_c)
+                if distance >= 10:
+                    should_reward = True
+                    break
 
-            # Check if player is facing the sign (skip sign direction)
-            # 0 - down, 4 - up, 8 - left, 0xC - right
-            # We are making the assumption that a player will only ever be 1 space away
-            # from a sign
-            return (
-                (player_direction == 0 and sign_x == player_x and sign_y == player_y + 1) or
-                (player_direction == 4 and sign_x == player_x and sign_y == player_y - 1) or
-                (player_direction == 8 and sign_y == player_y and sign_x == player_x - 1) or
-                (player_direction == 0xC and sign_y == player_y and sign_x == player_x + 1)
-            )
+        if should_reward:
+            self.rewarded_coords.add(new_position)
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         """Resets the game. Seeding is NOT supported"""
+        # if self.reset_count % 10 == 0: ## resets every 5 to 0 moved seen_coords to init
+        #     load_pyboy_state(self.game, self.load_first_state())
+        # else:
         load_pyboy_state(self.game, self.load_last_state())
         
         if self.save_video:
@@ -399,19 +456,18 @@ class Environment(Base):
             full_name = Path(f'reset_{self.reset_count}').with_suffix('.mp4')
             self.full_frame_writer = media.VideoWriter(base_dir / full_name, (144, 160), fps=60)
             self.full_frame_writer.__enter__()
-            
-        if self.log:
-            self.full_name_log = Path(f'pokemon_party_log').with_suffix('.txt')
-            self.write_to_log()
 
         if self.use_screen_memory:
             self.screen_memory = defaultdict(
                 lambda: np.zeros((255, 255, 1), dtype=np.uint8)
             )
 
+        self.reset_count += 1
         self.time = 0
         self.max_episode_steps = max_episode_steps
         self.reward_scale = reward_scale
+        self.last_reward = None
+
         self.prev_map_n = None
         self.init_hidden_obj_mem()
         self.max_events = 0
@@ -423,60 +479,82 @@ class Environment(Base):
         self.total_healing = 0
         self.last_hp = 1.0
         self.last_party_size = 1
-        self.last_reward = None
-        self.seen_coords_no_reward = set()
-        self.reset_count += 1
+        self.hm_count = 0
+        self.cut = 0
+        self.used_cut = 0
+        self.cut_coords = {}
+        self.cut_tiles = {} # set([])
+        self.cut_state = deque(maxlen=3)
+        self.seen_start_menu = 0
+        self.seen_pokemon_menu = 0
+        self.seen_stats_menu = 0
+        self.seen_bag_menu = 0
+        self.seen_cancel_bag_menu = 0
+        self.seen_pokemon = np.zeros(152, dtype=np.uint8)
+        self.caught_pokemon = np.zeros(152, dtype=np.uint8)
+        self.moves_obtained = np.zeros(0xA5, dtype=np.uint8)
         
+        self.seen_coords_no_reward = set()
+        self._all_events_string = ''
+        self.agent_stats = []
+        self.base_explore = 0
+        self.max_event_rew = 0
+        self.max_level_rew = 0
+        self.party_level_base = 0
+        self.party_level_post = 0
+        self.last_num_mon_in_box = 0
+        self.death_count = 0
+        self.visited_pokecenter_list = []
+        self.last_10_map_ids = np.zeros((10, 2), dtype=np.float32)
+        self.last_10_coords = np.zeros((10, 2), dtype=np.uint8)
+        self.past_events_string = ''
+        self.last_10_event_ids = np.zeros((128, 2), dtype=np.float32)
+        self.step_count = 0
+        self.past_rewards = np.zeros(10240, dtype=np.float32)
+        # self.base_event_flags = self.get_base_event_flags()
+        # assert len(self.all_events_string) == 2552, f'len(self.all_events_string): {len(self.all_events_string)}'
+        self.rewarded_events_string = '0' * 2552
+        self.seen_map_dict = {}
+        self._last_item_count = 0
+        self._is_box_mon_higher_level = False
+        self.secret_switch_states = {}
+        self.hideout_elevator_maps = []
+        self.use_mart_count = 0
+        self.use_pc_swap_count = 0
+        # self.progress_reward = self.get_game_state_reward()
+        self.total_reward = 0
+        self.used_cut = 0
+        self.rewarded_coords = set()
+        self.museum_punishment = deque(maxlen=10)
+
         return self.render(), {}
 
     def step(self, action, fast_video=True):
-        run_action_on_emulator(
-            self.game,
-            self.screen,
-            ACTIONS[action],
-            self.headless,
-            fast_video=fast_video,
-        )
+        run_action_on_emulator(self.game, self.screen, ACTIONS[action], self.headless, fast_video=fast_video,)
         self.time += 1
+
         if self.save_video:
             self.add_video_frame()
         
         # Exploration reward
         r, c, map_n = ram_map.position(self.game)
-                # Convert local position to global position
-        try:
-            glob_r, glob_c = game_map.local_to_global(r, c, map_n)
-        except IndexError:
-            print(f'IndexError: index {glob_r} or {glob_c} is out of bounds for axis 0 with size 444.')
-            glob_r = 0
-            glob_c = 0
-        
-        # Only reward for specified coordinates, not all coordinates seen
-        if ram_map.rewardable_coords(glob_c, glob_r):
-            self.seen_coords.add((r, c, map_n))
-        else:
-            self.seen_coords_no_reward.add((glob_c, glob_r, map_n))
+        # if map_n == 52 or map_n == 53:
+        #     self.museum_punishment.append((r, c))
+        #     exploration_reward = -0.01 * len(self.museum_punishment)
+        # else:
+        # glob_r, glob_c = game_map.local_to_global(r, c, map_n)
+        # self.rewarded_coords = self.update_reward((glob_r,glob_c,map_n))
+        self.seen_coords.add((r, c, map_n))
+        exploration_reward = 0.02 * len(self.seen_coords)
+
+        self.update_heat_map(r, c, map_n)
 
         if map_n != self.prev_map_n:
             self.prev_map_n = map_n
             if map_n not in self.seen_maps:
                 self.seen_maps.add(map_n)
-                self.talk_to_npc_count[map_n] = 0  # Initialize NPC talk count for this new map
-                self.save_state()
-     
-        self.update_pokedex()
-        self.update_moves_obtained()
+                # self.save_state()
 
-        exploration_reward = 0.01 * len(self.seen_coords)
-        self.update_heat_map(r, c, map_n)
-
-        # Aggregate the data in each env log file. Default location of file: pufferlib/log_file_aggregator.py
-        if self.time % 1000 == 0:
-            try:
-                subprocess.run(['python', '/home/daa/puffer0.5.2_iron/bill/pufferlib/log_file_aggregator.py'], check=True)
-            except subprocess.CalledProcessError as e:
-                print(f"Error running log_file_aggregator.py: {e}")
-        
         # Level reward
         party_size, party_levels = ram_map.party(self.game)
         self.max_level_sum = max(self.max_level_sum, sum(party_levels))
@@ -489,141 +567,145 @@ class Environment(Base):
         hp = ram_map.hp(self.game)
         hp_delta = hp - self.last_hp
         party_size_constant = party_size == self.last_party_size
-
-        # Only reward if not reviving at pokecenter
-        if hp_delta > 0 and party_size_constant and not self.is_dead:
+        if hp_delta > 0.2 and party_size_constant and not self.is_dead:
             self.total_healing += hp_delta
-
-        # Dead if hp is zero
         if hp <= 0 and self.last_hp > 0:
             self.death_count += 1
             self.is_dead = True
         elif hp > 0.01:  # TODO: Check if this matters
             self.is_dead = False
-
-        # Update last known values for next iteration
         self.last_hp = hp
         self.last_party_size = party_size
         death_reward = 0 # -0.08 * self.death_count  # -0.05
-        
-        # Set rewards
         healing_reward = self.total_healing
-
-        # Opponent level reward
-        max_opponent_level = max(ram_map.opponent(self.game))
-        self.max_opponent_level = max(self.max_opponent_level, max_opponent_level)
-        opponent_level_reward = 0 # 0.2 * self.max_opponent_level
 
         # Badge reward
         badges = ram_map.badges(self.game)
-        badges_reward = 5 * badges
+        badges_reward = 10 * badges # 5 BET
                 
         # Save Bill
         bill_state = ram_map.saved_bill(self.game)
-        bill_reward = 10 * bill_state
+        bill_reward = 5 * bill_state
         
-        # SS Anne appeared
-        ss_anne_state = ram_map.ss_anne_appeared(self.game)
-        if ss_anne_state:
-            ss_anne_state_reward = 10 # 5
-            ss_anne_obtained = 1
-        else:
-            ss_anne_state_reward = 0
-            ss_anne_obtained = 0
-    
         # HM reward
-        hm_count = self.get_hm_rewards()
+        hm_count = ram_map.get_hm_count(self.game)
+        if hm_count >= 1 and self.hm_count == 0:
+            self.save_state()
+            self.hm_count = 1
         hm_reward = hm_count * 10
-
+        cut_rew = self.cut * 10    
+        
+        # Money 
+        money = ram_map.money(self.game)
+        
+        # Opponent level reward
+        max_opponent_level = max(ram_map.opponent(self.game))
+        self.max_opponent_level = max(self.max_opponent_level, max_opponent_level)
+        opponent_level_reward = 0.006 * self.max_opponent_level # previously disabled BET
+        
         # Event reward
         events = ram_map.events(self.game)
         self.max_events = max(self.max_events, events)
         event_reward = self.max_events
 
-        money = ram_map.money(self.game)
-        
-        # Check NPC/hidden object function
-        # check if the font is loaded
-        if ram_map.mem_val(self.game, 0xCFC4):
-            # check if we are talking to a hidden object:
-            player_direction = ram_map.mem_val(self.game, 0xC109)
-            if ram_map.mem_val(self.game, 0xCD3D) != 0x0 and ram_map.mem_val(self.game, 0xCD3E) != 0x0:
-                # add hidden object to seen hidden objects
-                self.seen_hidden_objs.add((ram_map.mem_val(self.game, 0xD35E), ram_map.mem_val(self.game, 0xCD3F)))
-        else:
-            # get information for player
-            player_direction = ram_map.mem_val(self.game, 0xC109)
-            player_y = ram_map.mem_val(self.game, 0xC104)
-            player_x = ram_map.mem_val(self.game, 0xC106)
-            # get the npc who is closest to the player and facing them
-            # we go through all npcs because there are npcs like
-            # nurse joy who can be across a desk and still talk to you
-            mindex = 0
-            minv = 1000
-            for npc_id in range(1, ram_map.mem_val(self.game, 0xD4E1)):
-                npc_dist = self.find_neighboring_npc(npc_id, player_direction, player_x, player_y)
-                if npc_dist < minv:
-                    mindex = npc_id
-                    minv = npc_dist
-            # A little counterintuitive. A mindex of 0 means the player isn't talking to an NPC
-            # However, given that we are also checking for hidden objects and signs,
-            # it could also mean a field move is being used which is worth the reward.
-            if mindex != 0:
-                self.seen_npcs.add((ram_map.mem_val(self.game, 0xD35E), mindex))
-        
-        # Function below for sign handling in future; uncomment entire function to handle signs
-        # # check if the font is loaded
-        # if ram_map.mem_val(self.game, 0xCFC4):
-        #     # check if we are talking to a hidden object:
-        #     player_direction = ram_map.mem_val(self.game, 0xC109)
-        #     player_y_tiles = ram_map.mem_val(self.game, 0xD361)
-        #     player_x_tiles = ram_map.mem_val(self.game, 0xD362)
-        #     if ram_map.mem_val(self.game, 0xCD3D) != 0x0 and ram_map.mem_val(self.game, 0xCD3E) != 0x0:
-        #         # add hidden object to seen hidden objects
-        #         self.seen_hidden_objs.add((ram_map.mem_val(self.game, 0xD35E), ram_map.mem_val(self.game, 0xCD3F)))
-        #     elif any(self.find_neighboring_sign(sign_id, player_direction, player_x_tiles, player_y_tiles) for sign_id in range(ram_map.mem_val(self.game, 0xD4B0))):
-        #         pass # doing nothing if it's a sign atm
-        #     else:
-        #         # get information for player
-        #         player_y = ram_map.mem_val(self.game, 0xC104)
-        #         player_x = ram_map.mem_val(self.game, 0xC106)
-        #         # get the npc who is closest to the player and facing them
-        #         # we go through all npcs because there are npcs like
-        #         # nurse joy who can be across a desk and still talk to you
-        #         mindex = 0
-        #         minv = 1000
-        #         for npc_id in range(1, ram_map.mem_val(self.game, 0xD4E1)):
-        #             npc_dist = self.find_neighboring_npc(npc_id, player_direction, player_x, player_y)
-        #             if npc_dist < minv:
-        #                 mindex = npc_id
-        #                 minv = npc_dist
-        #         # A little counterintuitive. A mindex of 0 means the player isn't talking to an NPC
-        #         # However, given that we are also checking for hidden objects and signs,
-        #         # it could also mean a field move is being used which is worth the reward.
-        #         # if mindex != 0:
-        #         self.seen_npcs.add((ram_map.mem_val(self.game, 0xD35E), mindex))
+        # #Item Reward
+        # items = ram_map.get_items_in_bag(self.game)
+        # item_reward = len(items)
 
-        explore_npcs_reward = self.reward_scale * self.explore_npc_weight * len(self.seen_npcs) * 0.00015
-        seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon) * 0.00010
-        caught_pokemon_reward = self.reward_scale * sum(self.caught_pokemon) * 0.00010
-        moves_obtained_reward = self.reward_scale * sum(self.moves_obtained) * 0.00010
-        explore_hidden_objs_reward = self.reward_scale * self.explore_hidden_obj_weight * len(self.seen_hidden_objs) * 0.00015
+
+        # Cut check
+        # 0xCFC6 - wTileInFrontOfPlayer
+        # 0xCFCB - wUpdateSpritesEnabled
+        if ram_map.mem_val(self.game, 0xD057) == 0: # is_in_battle if 1
+            if self.cut == 1:
+                player_direction = self.game.get_memory_value(0xC109)
+                x, y, map_id = self.get_game_coords()  # x, y, map_id
+                if player_direction == 0:  # down
+                    coords = (x, y + 1, map_id)
+                if player_direction == 4:
+                    coords = (x, y - 1, map_id)
+                if player_direction == 8:
+                    coords = (x - 1, y, map_id)
+                if player_direction == 0xC:
+                    coords = (x + 1, y, map_id)
+                self.cut_state.append(
+                    (
+                        self.game.get_memory_value(0xCFC6),
+                        self.game.get_memory_value(0xCFCB),
+                        self.game.get_memory_value(0xCD6A),
+                        self.game.get_memory_value(0xD367),
+                        self.game.get_memory_value(0xD125),
+                        self.game.get_memory_value(0xCD3D),
+                    )
+                )
+                if tuple(list(self.cut_state)[1:]) in CUT_SEQ:
+                    self.cut_coords[coords] = 10
+                    self.cut_tiles[self.cut_state[-1][0]] = 1
+                elif self.cut_state == CUT_GRASS_SEQ:
+                    self.cut_coords[coords] = 0.001
+                    self.cut_tiles[self.cut_state[-1][0]] = 1
+                elif deque([(-1, *elem[1:]) for elem in self.cut_state]) == CUT_FAIL_SEQ:
+                    self.cut_coords[coords] = 0.001
+                    self.cut_tiles[self.cut_state[-1][0]] = 1
+
+
+                if int(ram_map.read_bit(self.game, 0xD803, 0)):
+                    if self.check_if_in_start_menu():
+                        self.seen_start_menu = 1
+
+                    if self.check_if_in_pokemon_menu():
+                        self.seen_pokemon_menu = 1
+
+                    if self.check_if_in_stats_menu():
+                        self.seen_stats_menu = 1
+
+                    if self.check_if_in_bag_menu():
+                        self.seen_bag_menu = 1
+
+                    if self.check_if_cancel_bag_menu(action):
+                        self.seen_cancel_bag_menu = 1
+
+        # Misc
+        self.update_pokedex()
+        self.update_moves_obtained()
+
+        bill_capt_rew = ram_map.bill_capt(self.game)
+        if ram_map.used_cut(self.game) == 61:
+            ram_map.write_mem(self.game, 0xCD4D, 00) # address, byte to write
+            self.used_cut += 1
+
+        used_cut_rew = self.used_cut * 5
+        start_menu = self.seen_start_menu * 0.01
+        pokemon_menu = self.seen_pokemon_menu * 0.1
+        stats_menu = self.seen_stats_menu * 0.1
+        bag_menu = self.seen_bag_menu * 0.1
+        # "cancel_bag_menu": self.seen_cancel_bag_menu * 0.1,
+        cut_coords = sum(self.cut_coords.values()) * 1.0
+        cut_tiles = len(self.cut_tiles) * 1.0
+        that_guy = (start_menu + pokemon_menu + stats_menu + bag_menu) # cut_coords + cut_tiles
+    
+        seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon)
+        caught_pokemon_reward = self.reward_scale * sum(self.caught_pokemon)
+        moves_obtained_reward = self.reward_scale * sum(self.moves_obtained)
 
         reward = self.reward_scale * (
             event_reward
-            + explore_npcs_reward # Doesn't reset on reset but maybe should?
+            + bill_capt_rew
             + seen_pokemon_reward
             + caught_pokemon_reward
             + moves_obtained_reward
-            + explore_hidden_objs_reward # Resets on reset
             + bill_reward
             + hm_reward
             + level_reward
-            + opponent_level_reward
-            + death_reward # Resets on reset
+            + death_reward
             + badges_reward
-            + healing_reward # Resets each step
-            + exploration_reward # Resets on reset
+            + healing_reward
+            + exploration_reward 
+            + cut_rew
+            + that_guy / 2
+            + used_cut_rew
+            + cut_coords
+            + cut_tiles
         )
 
         # Subtract previous reward
@@ -638,10 +720,102 @@ class Environment(Base):
 
         info = {}
         done = self.time >= self.max_episode_steps
+        # if done:
+        #     a_r = random.random()
+        #     if a_r > 0.5:
+        #         print(f'env_id {self.env_id}: random value={a_r}')
+        #         pass
+        #     else:
+        #         done = False
+        #         self.time = (0.5 * self.reset_count) * self.max_episode_steps
+        #         print(f'env_id {self.env_id} has extended an episode! self.time={self.time}')
         if self.save_video and done:
             self.full_frame_writer.close()
+        
         if done:
+            self.save_state()
+        if done or self.time % 5000 == 0:   
+            levels = [self.game.get_memory_value(a) for a in [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268]]       
             info = {
+                "stats": {
+                    "step": self.time,
+                    "x": c,
+                    "y": r,
+                    "map": map_n,
+                    # "map_location": self.get_map_location(map_n),
+                    # "max_map_progress": self.max_map_progress,
+                    "pcount": int(self.game.get_memory_value(0xD163)),
+                    "levels": levels,
+                    "levels_sum": sum(levels),
+                    # "ptypes": self.read_party(),
+                    # "hp": self.read_hp_fraction(),
+                    "coord": np.sum(self.counts_map),  # np.sum(self.seen_global_coords),
+                    # "map_id": np.sum(self.seen_map_ids),
+                    # "npc": sum(self.seen_npcs.values()),
+                    # "hidden_obj": sum(self.seen_hidden_objs.values()),
+                    "deaths": self.death_count,
+                    "badges": float(badges),
+                    "badge_1": float(badges >= 1),
+                    "badge_2": float(badges >= 2),
+                    "badge_3": float(badges >= 3),
+                    "badge_4": float(badges >= 4),
+                    "badge_5": float(badges >= 5),
+                    "badge_6": float(badges >= 6),
+                    "events": len(self.past_events_string),
+                    # "action_hist": self.action_hist,
+                    # "caught_pokemon": int(sum(self.caught_pokemon)),
+                    # "seen_pokemon": int(sum(self.seen_pokemon)),
+                    # "moves_obtained": int(sum(self.moves_obtained)),
+                    "opponent_level": self.max_opponent_level,
+                    "met_bill": int(ram_map.read_bit(self.game, 0xD7F1, 0)),
+                    "used_cell_separator_on_bill": int(ram_map.read_bit(self.game, 0xD7F2, 3)),
+                    "ss_ticket": int(ram_map.read_bit(self.game, 0xD7F2, 4)),
+                    "met_bill_2": int(ram_map.read_bit(self.game, 0xD7F2, 5)),
+                    "bill_said_use_cell_separator": int(ram_map.read_bit(self.game, 0xD7F2, 6)),
+                    "left_bills_house_after_helping": int(ram_map.read_bit(self.game, 0xD7F2, 7)),
+                    "got_hm01": int(ram_map.read_bit(self.game, 0xD803, 0)),
+                    "rubbed_captains_back": int(ram_map.read_bit(self.game, 0xD803, 1)),
+                    # "taught_cut": int(self.check_if_party_has_cut()),
+                    # "cut_coords": sum(self.cut_coords.values()),
+                    'pcount': int(self.game.get_memory_value(0xD163)), 
+                    # 'visited_pokecenterr': self.get_visited_pokecenter_reward(),
+                    # 'rewards': int(self.total_reward) if self.total_reward is not None else 0,
+                    "maps_explored": len(self.seen_maps),
+                    "party_size": party_size,
+                    "highest_pokemon_level": max(party_levels),
+                    "total_party_level": sum(party_levels),
+                    "deaths": self.death_count,
+                    "bill_saved": bill_state,
+                    "hm_count": hm_count,
+                    # "ss_anne_obtained": ss_anne_obtained,
+                    "event": events,
+                    "money": money,
+                    "pokemon_exploration_map": self.counts_map,
+                    "seen_npcs_count": len(self.seen_npcs),
+                    "seen_pokemon": np.sum(self.seen_pokemon),
+                    "caught_pokemon": np.sum(self.caught_pokemon),
+                    "moves_obtained": np.sum(self.moves_obtained),
+                    "hidden_obj_count": len(self.seen_hidden_objs),
+                    "bill_saved": bill_state,
+                    "hm_count": hm_count,
+                    "cut_taught": self.cut,
+                    "badge_1": float(badges >= 1),
+                    "badge_2": float(badges >= 2),
+                    "badge_3": float(badges >= 3),
+                    "event": events,
+                    "maps_explored": np.sum(self.seen_maps),
+                    "party_size": party_size,
+                    "moves_obtained": sum(self.moves_obtained),
+                    "deaths": self.death_count,
+                    "bill_capt": (bill_capt_rew/5),
+                    'cut_coords': cut_coords,
+                    'cut_tiles': cut_tiles,
+                    'bag_menu': bag_menu,
+                    'stats_menu': stats_menu,
+                    'pokemon_menu': pokemon_menu,
+                    'start_menu': start_menu,
+                    'used_cut': self.used_cut,
+                },
                 "reward": {
                     "delta": reward,
                     "event": event_reward,
@@ -651,53 +825,62 @@ class Environment(Base):
                     "badges": badges_reward,
                     "bill_saved_reward": bill_reward,
                     "hm_count_reward": hm_reward,
-                    "ss_anne_done_reward": ss_anne_state_reward,
+                    # "ss_anne_done_reward": ss_anne_state_reward,
                     "healing": healing_reward,
                     "exploration": exploration_reward,
-                    "explore_npcs_reward": explore_npcs_reward,
+                    # "explore_npcs_reward": explore_npcs_reward,
                     "seen_pokemon_reward": seen_pokemon_reward,
                     "caught_pokemon_reward": caught_pokemon_reward,
                     "moves_obtained_reward": moves_obtained_reward,
-                    "hidden_obj_count_reward": explore_hidden_objs_reward,
+                    # "hidden_obj_count_reward": explore_hidden_objs_reward,
                 },
-                "maps_explored": len(self.seen_maps),
-                "party_size": party_size,
-                "highest_pokemon_level": max(party_levels),
-                "total_party_level": sum(party_levels),
-                "deaths": self.death_count,
-                "bill_saved": bill_state,
-                "hm_count": hm_count,
-                "ss_anne_obtained": ss_anne_obtained,
-                "badge_1": float(badges >= 1),
-                "badge_2": float(badges >= 2),
-                "event": events,
-                "money": money,
-                "pokemon_exploration_map": self.counts_map,
-                "seen_npcs_count": len(self.seen_npcs),
-                "seen_pokemon": sum(self.seen_pokemon),
-                "caught_pokemon": sum(self.caught_pokemon),
-                "moves_obtained": sum(self.moves_obtained),
-                "hidden_obj_count": len(self.seen_hidden_objs),
+                "pokemon_exploration_map": self.counts_map, # self.explore_map, #  self.counts_map, 
             }
 
-        if self.verbose:
-            print(
-                f'number of signs: {ram_map.signs(self.game)}, number of sprites: {ram_map.sprites(self.game)}\n',
-                f"steps: {self.time}\n",
-                f"seen_npcs #: {len(self.seen_npcs)}\n",
-                f"seen_npcs set: {self.seen_npcs}\n",
-                # f"is_in_battle: {ram_map.is_in_battle(self.game)}",
-                f"exploration reward: {exploration_reward}\n",
-                f"explore_npcs reward: {explore_npcs_reward}\n",
-                f"level_Reward: {level_reward}\n",
-                f"healing: {healing_reward}\n",
-                f"death: {death_reward}\n",
-                f"op_level: {opponent_level_reward}\n",
-                f"badges reward: {badges_reward}\n",
-                f"event reward: {event_reward}\n",
-                f"money: {money}\n",
-                f"ai reward: {reward}\n",
-                f"Info: {info}\n",
-            )
+        # if done or self.time % 5000 == 0:
+        #     info = {
+        #         "reward": {
+        #             "delta": reward,
+        #             "event": event_reward,
+        #             "level": level_reward,
+        #             "badges": badges_reward,
+        #             "bill_saved_reward": bill_reward,
+        #             "hm_count_reward": hm_reward,
+        #             "healing": healing_reward,
+        #             "exploration": exploration_reward,
+        #             "seen_pokemon_reward": seen_pokemon_reward,
+        #             "caught_pokemon_reward": caught_pokemon_reward,
+        #             "moves_obtained_reward": moves_obtained_reward,
+        #         },
+        #         "bill_saved": bill_state,
+        #         "hm_count": hm_count,
+        #         "cut_taught": self.cut,
+        #         "badge_1": float(badges >= 1),
+        #         "badge_2": float(badges >= 2),
+        #         "badge_3": float(badges >= 3),
+        #         "event": events,
+        #         "maps_explored": np.sum(self.seen_maps),
+        #         "party_size": party_size,
+        #         # "pokemon_exploration_map": self.counts_map,
+        #         "moves_obtained": sum(self.moves_obtained),
+        #         "deaths": self.death_count,
+        #         "bill_capt": (bill_capt_rew/5),
+        #         'cut_coords': cut_coords,
+        #         'cut_tiles': cut_tiles,
+        #         'bag_menu': bag_menu,
+        #         'stats_menu': stats_menu,
+        #         'pokemon_menu': pokemon_menu,
+        #         'start_menu': start_menu,
+        #         'used_cut': self.used_cut,
+        #         # "highest_pokemon_level": max(party_levels),
+        #         # "total_party_level": sum(party_levels),
+        #         # "money": money,
+        #         # "ss_anne_state": ss_anne_state,
+        #         # "seen_npcs_count": len(self.seen_npcs),
+        #         # "seen_pokemon": sum(self.seen_pokemon),
+        #         # "caught_pokemon": sum(self.caught_pokemon),
+        #         # "hidden_obj_count": len(self.seen_hidden_objs),
+        #         # "logging": pokemon,
+        # #     }
         
         return self.render(), reward, done, done, info
