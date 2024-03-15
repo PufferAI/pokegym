@@ -178,6 +178,7 @@ class Environment(Base):
         self.log = True
         # self.seen_coords = set()
         self.map_check = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        self.used_cut = 0 # moved from reset
         
     def update_pokedex(self):
         for i in range(0xD30A - 0xD2F7):
@@ -294,7 +295,7 @@ class Environment(Base):
         self.last_party_size = 1
         self.hm_count = 0
         self.cut = 0
-        self.used_cut = 0
+        # self.used_cut = 0 # moved to init
         self.cut_coords = {}
         self.cut_tiles = {} # set([])
         self.cut_state = deque(maxlen=3)

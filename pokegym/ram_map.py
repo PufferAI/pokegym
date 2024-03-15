@@ -111,7 +111,7 @@ def get_hm_count(game):
 def get_items_in_bag(game, one_indexed=0):
     first_item = 0xD31E
     item_ids = []
-    for i in range(0, 20, 2):
+    for i in range(0, 40, 2):
         item_id = game.get_memory_value(first_item + i)
         if item_id == 0 or item_id == 0xff:
             break
@@ -121,7 +121,7 @@ def get_items_in_bag(game, one_indexed=0):
 def get_items_names(game, one_indexed=0):
     first_item = 0xD31E
     item_names = []
-    for i in range(0, 20, 2):
+    for i in range(0, 40, 2):
         item_id = game.get_memory_value(first_item + i)
         if item_id == 0 or item_id == 0xff:
             break
