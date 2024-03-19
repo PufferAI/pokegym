@@ -178,7 +178,7 @@ class Environment(Base):
         self.log = True
         # self.seen_coords = set()
         self.map_check = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        self.used_cut = 0 # moved from reset
+        load_pyboy_state(self.game, self.load_last_state())
         
     def update_pokedex(self):
         for i in range(0xD30A - 0xD2F7):
@@ -186,7 +186,14 @@ class Environment(Base):
             seen_mem = self.game.get_memory_value(i + 0xD30A)
             for j in range(8):
                 self.caught_pokemon[8*i + j] = 1 if caught_mem & (1 << j) else 0
-                self.seen_pokemon[8*i + j] = 1 if seen_mem & (1 << j) else 0   
+                self.seen_pokemon[8*i + j] = 1 if seen_mem & (1 << j) else 0  
+
+    def town_state(self):
+        state = io.BytesIO()
+        state.seek(0)
+        self.game.save_state(state)
+        self.initial_states.append(state)
+        return 
     
     def update_moves_obtained(self):
         # Scan party
@@ -261,11 +268,6 @@ class Environment(Base):
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         """Resets the game. Seeding is NOT supported"""
         self.reset_count += 1
-        # if self.reset_count % 5 == 0: ## resets every 5 to 0 moved seen_coords to init
-        #     load_pyboy_state(self.game, self.load_first_state())
-        #     self.seen_coords = set()
-        # else:
-        load_pyboy_state(self.game, self.load_last_state())
         
         if self.save_video:
             base_dir = self.s_path
@@ -295,7 +297,7 @@ class Environment(Base):
         self.last_party_size = 1
         self.hm_count = 0
         self.cut = 0
-        # self.used_cut = 0 # moved to init
+        self.used_cut = 0
         self.cut_coords = {}
         self.cut_tiles = {} # set([])
         self.cut_state = deque(maxlen=3)
@@ -307,6 +309,7 @@ class Environment(Base):
         self.seen_pokemon = np.zeros(152, dtype=np.uint8)
         self.caught_pokemon = np.zeros(152, dtype=np.uint8)
         self.moves_obtained = np.zeros(0xA5, dtype=np.uint8)
+        self.town = 1
 
         return self.render(), {}
 
@@ -321,10 +324,6 @@ class Environment(Base):
         r, c, map_n = ram_map.position(self.game)
         self.seen_coords.add((r, c, map_n))
         exploration_reward = 0.02 * len(self.seen_coords)
-
-        #############################################################################################
-        
-        #############################################################################################
 
         # Level reward
         party_size, party_levels = ram_map.party(self.game)
@@ -410,8 +409,6 @@ class Environment(Base):
                 elif deque([(-1, *elem[1:]) for elem in self.cut_state]) == CUT_FAIL_SEQ:
                     self.cut_coords[coords] = 0.001
                     self.cut_tiles[self.cut_state[-1][0]] = 1
-
-
                 if int(ram_map.read_bit(self.game, 0xD803, 0)):
                     if self.check_if_in_start_menu():
                         self.seen_start_menu = 1
@@ -424,22 +421,25 @@ class Environment(Base):
                     if self.check_if_cancel_bag_menu(action):
                         self.seen_cancel_bag_menu = 1
 
+        if ram_map.used_cut(self.game) == 61:
+            ram_map.write_mem(self.game, 0xCD4D, 00) # address, byte to write resets tile check
+            self.used_cut += 1
 
         # Misc
         self.update_pokedex()
         self.update_moves_obtained()
 
-        bill_capt_rew = ram_map.bill_capt(self.game)
-        if ram_map.used_cut(self.game) == 61:
-            ram_map.write_mem(self.game, 0xCD4D, 00) # address, byte to write
-            self.used_cut += 1
+        if badges >= 2:
+            bill_capt_rew = ram_map.bill_capt(self.game)
+        else:
+            bill_capt_rew = 0
+            
 
         used_cut_rew = self.used_cut * 5
         start_menu = self.seen_start_menu * 0.01
         pokemon_menu = self.seen_pokemon_menu * 0.1
         stats_menu = self.seen_stats_menu * 0.1
         bag_menu = self.seen_bag_menu * 0.1
-        # "cancel_bag_menu": self.seen_cancel_bag_menu * 0.1,
         cut_coords = sum(self.cut_coords.values()) * 1.0
         cut_tiles = len(self.cut_tiles) * 1.0
         seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon)
@@ -498,6 +498,26 @@ class Environment(Base):
                     "caught_pokemon_reward": caught_pokemon_reward,
                     "moves_obtained_reward": moves_obtained_reward,
                 },
+                "BET": {
+                    "Reward_Delta": reward,
+                    "Event": event_reward,
+                    "Bill_Capt": bill_capt_rew,
+                    "Seen_Poke": seen_pokemon_reward,
+                    "Caught_Poke": caught_pokemon_reward,
+                    "Moves_Obtain": moves_obtained_reward,
+                    "Bill": bill_reward,
+                    "Get_HM": hm_reward,
+                    "Level": level_reward,
+                    "Death": death_reward,
+                    "Badges": badges_reward,
+                    "Healing": healing_reward,
+                    "Exploration": exploration_reward,
+                    "Taught_Cut": cut_rew,
+                    "Menuing": that_guy,
+                    "Used_Cut": used_cut_rew,
+                    "Cut_Coords": cut_coords,
+                    "Cut_Tiles": cut_tiles,
+                },
                 "bill_saved": bill_state,
                 "hm_count": hm_count,
                 "cut_taught": self.cut,
@@ -513,7 +533,6 @@ class Environment(Base):
                 "event": events,
                 "maps_explored": np.sum(self.seen_maps),
                 "party_size": party_size,
-                # "pokemon_exploration_map": self.counts_map,
                 "moves_obtained": sum(self.moves_obtained),
                 "deaths": self.death_count,
                 "bill_capt": (bill_capt_rew/5),
@@ -524,15 +543,6 @@ class Environment(Base):
                 'pokemon_menu': pokemon_menu,
                 'start_menu': start_menu,
                 'used_cut': self.used_cut,
-                # "highest_pokemon_level": max(party_levels),
-                # "total_party_level": sum(party_levels),
-                # "money": money,
-                # "ss_anne_state": ss_anne_state,
-                # "seen_npcs_count": len(self.seen_npcs),
-                # "seen_pokemon": sum(self.seen_pokemon),
-                # "caught_pokemon": sum(self.caught_pokemon),
-                # "hidden_obj_count": len(self.seen_hidden_objs),
-                # "logging": pokemon,
             }
         
         return self.render(), reward, done, done, info

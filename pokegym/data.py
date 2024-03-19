@@ -572,21 +572,28 @@ MOVE2 = [0xD174, 0xD1A0, 0xD1CC, 0xD1F8, 0xD224, 0xD250]
 MOVE3 = [0xD175, 0xD1A1, 0xD1CD, 0xD1F9, 0xD225, 0xD251]
 MOVE4 = [0xD176, 0xD1A2, 0xD1CE, 0xD1FA, 0xD226, 0xD252]
 
-def pokemon_l(game):
-    pokemon_info = [{"slot": str(i + 1), "name": "", "level": "0", "moves": []} for i in range(6)]
-    for i in range(6):
-        p, l = game.get_memory_value(POKE[i]), game.get_memory_value(LEVEL[i])
-        hex_value = hex(int(p))[2:].upper()
-        matching_pokemon = next((entry for entry in pokemon_data if entry.get('hex') == hex_value), None)
-        if matching_pokemon:
-            pokemon_info[i]["name"] = matching_pokemon["name"]
-            pokemon_info[i]["level"] = str(l)
-            moves_addresses = [MOVE1[i], MOVE2[i], MOVE3[i], MOVE4[i]]
-            pokemon_info[i]["moves"] = []
-            for moves_address in moves_addresses:
-                move_value = game.get_memory_value(moves_address)
-                if move_value != 0x00:
-                    move_info = moves_dict.get(move_value, {})
-                    move_name = move_info.get("Move", "")
-                    pokemon_info[i]["moves"].append(move_name)
-    return pokemon_info
+def logs(game):
+    data_dict = {}
+
+    for i in range(len(POKE)): # 6 
+        p = game.get_memory_value(POKE[i])
+        l = game.get_memory_value(LEVEL[i])
+        moves_addresses = [MOVE1[i], MOVE2[i], MOVE3[i], MOVE4[i]]
+        n = poke_dict.get(p, {})
+        name = n.get('name', '')
+
+
+        slot_data = {
+            'name': name,
+            'level': l,
+            'moves': []
+        }
+        for moves_address in moves_addresses:
+            move_value = game.get_memory_value(moves_address)
+            if move_value != 0x00:
+                move_info = moves_dict.get(move_value, {})
+                move_name = move_info.get("Move", "")
+                slot_data["moves"].append(move_name)
+        data_dict[f'slot{i+1}'] = slot_data
+    # print(data_dict)
+    return data_dict
