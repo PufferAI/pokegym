@@ -245,10 +245,12 @@ class Environment(Base):
         self.pokecenter_ids = [0x01, 0x02, 0x03, 0x0F, 0x15, 0x05, 0x06, 0x04, 0x07, 0x08, 0x0A, 0x09]
         self.visited_pokecenter_list = []
         self._all_events_string = ''
-        self.used_cut_coords_dict = {}
+        self.used_cut_coords_set = set()
         self.rewarded_coords = set()
         self.rewarded_position = (0, 0)
         # self.seen_coords = set() ## moved from reset
+        self.state_loaded_instead_of_resetting_in_game = 0
+        self.badge_count = 0
 
         # #for reseting at 7
         # self.prev_map_n = None
@@ -262,7 +264,7 @@ class Environment(Base):
         # self.last_party_size = 1
         # self.hm_count = 0
         # self.cut = 0
-        # self.used_cut = 0
+        self.used_cut = 0
         # self.cut_coords = {}
         # self.cut_tiles = {} # set([])
         # self.cut_state = deque(maxlen=3)
@@ -448,7 +450,8 @@ class Environment(Base):
         # if self.reset_count % 10 == 0: ## resets every 5 to 0 moved seen_coords to init
         #     load_pyboy_state(self.game, self.load_first_state())
         # else:
-        load_pyboy_state(self.game, self.load_last_state())
+        if self.reset_count == 0:
+            load_pyboy_state(self.game, self.load_first_state())
         
         if self.save_video:
             base_dir = self.s_path
@@ -475,13 +478,13 @@ class Environment(Base):
         self.max_opponent_level = 0
         self.seen_coords = set()
         self.seen_maps = set()
-        self.death_count = 0
+        self.death_count_per_episode = 0
         self.total_healing = 0
         self.last_hp = 1.0
         self.last_party_size = 1
         self.hm_count = 0
         self.cut = 0
-        self.used_cut = 0
+        self.used_cut = 0 # don't reset, for tracking
         self.cut_coords = {}
         self.cut_tiles = {} # set([])
         self.cut_state = deque(maxlen=3)
@@ -523,7 +526,6 @@ class Environment(Base):
         self.use_pc_swap_count = 0
         # self.progress_reward = self.get_game_state_reward()
         self.total_reward = 0
-        self.used_cut = 0
         self.rewarded_coords = set()
         self.museum_punishment = deque(maxlen=10)
 
@@ -533,6 +535,10 @@ class Environment(Base):
         run_action_on_emulator(self.game, self.screen, ACTIONS[action], self.headless, fast_video=fast_video,)
         self.time += 1
 
+        # if self.is_dead:
+        #     self.state_loaded_instead_of_resetting_in_game += 1
+        #     load_pyboy_state(self.game, self.load_last_state())
+        
         if self.save_video:
             self.add_video_frame()
         
@@ -545,7 +551,9 @@ class Environment(Base):
         # glob_r, glob_c = game_map.local_to_global(r, c, map_n)
         # self.rewarded_coords = self.update_reward((glob_r,glob_c,map_n))
         self.seen_coords.add((r, c, map_n))
-        exploration_reward = 0.02 * len(self.seen_coords)
+        
+        # BET: increase exploration after cutting at least 1 tree to encourage exploration vs cut perseveration
+        exploration_reward = 0.02 * len(self.seen_coords) if self.used_cut < 1 else 0.1 * len(self.seen_coords)
 
         self.update_heat_map(r, c, map_n)
 
@@ -571,6 +579,7 @@ class Environment(Base):
             self.total_healing += hp_delta
         if hp <= 0 and self.last_hp > 0:
             self.death_count += 1
+            self.death_count_per_episode += 1
             self.is_dead = True
         elif hp > 0.01:  # TODO: Check if this matters
             self.is_dead = False
@@ -582,6 +591,16 @@ class Environment(Base):
         # Badge reward
         badges = ram_map.badges(self.game)
         badges_reward = 10 * badges # 5 BET
+
+        badges = float(badges)
+        if badges >= 1 and self.badge_count == 0 or \
+        badges >= 2 and self.badge_count == 1 or \
+        badges >= 3 and self.badge_count == 2 or \
+        badges >= 4 and self.badge_count == 3 or \
+        badges >= 5 and self.badge_count == 4 or \
+        badges >= 6 and self.badge_count == 5:
+            # self.save_state()
+            self.badge_count += 1
                 
         # Save Bill
         bill_state = ram_map.saved_bill(self.game)
@@ -589,11 +608,13 @@ class Environment(Base):
         
         # HM reward
         hm_count = ram_map.get_hm_count(self.game)
+        
+        # Save state on obtaining hm
         if hm_count >= 1 and self.hm_count == 0:
-            self.save_state()
+            # self.save_state()
             self.hm_count = 1
         hm_reward = hm_count * 10
-        cut_rew = self.cut * 10    
+        cut_rew = self.cut * 10 # 10    
         
         # Money 
         money = ram_map.money(self.game)
@@ -670,11 +691,16 @@ class Environment(Base):
         self.update_moves_obtained()
 
         bill_capt_rew = ram_map.bill_capt(self.game)
+        
+        # BET ADDED: used cut on tree
         if ram_map.used_cut(self.game) == 61:
             ram_map.write_mem(self.game, 0xCD4D, 00) # address, byte to write
-            self.used_cut += 1
+            if (map_n, r, c) in self.used_cut_coords_set:
+                pass
+            else:
+                self.used_cut += 1
 
-        used_cut_rew = self.used_cut * 5
+        used_cut_on_tree_rew = self.used_cut * 10 # 5
         start_menu = self.seen_start_menu * 0.01
         pokemon_menu = self.seen_pokemon_menu * 0.1
         stats_menu = self.seen_stats_menu * 0.1
@@ -703,9 +729,9 @@ class Environment(Base):
             + exploration_reward 
             + cut_rew
             + that_guy / 2
-            + used_cut_rew
-            + cut_coords
-            + cut_tiles
+            + used_cut_on_tree_rew # reward for cutting an actual tree (but not erika's trees)
+            + cut_coords # reward for cutting anything at all
+            + cut_tiles # reward for cutting a cut tile, e.g. a patch of grass
         )
 
         # Subtract previous reward
@@ -732,8 +758,8 @@ class Environment(Base):
         if self.save_video and done:
             self.full_frame_writer.close()
         
-        if done:
-            self.save_state()
+        # if done:
+        #     self.save_state()
         if done or self.time % 5000 == 0:   
             levels = [self.game.get_memory_value(a) for a in [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268]]       
             info = {
@@ -754,7 +780,9 @@ class Environment(Base):
                     # "npc": sum(self.seen_npcs.values()),
                     # "hidden_obj": sum(self.seen_hidden_objs.values()),
                     "deaths": self.death_count,
+                    "deaths_per_episode": self.death_count_per_episode,
                     "badges": float(badges),
+                    "self.badge_count": self.badge_count,
                     "badge_1": float(badges >= 1),
                     "badge_2": float(badges >= 2),
                     "badge_3": float(badges >= 3),
@@ -785,8 +813,6 @@ class Environment(Base):
                     "highest_pokemon_level": max(party_levels),
                     "total_party_level": sum(party_levels),
                     "deaths": self.death_count,
-                    "bill_saved": bill_state,
-                    "hm_count": hm_count,
                     # "ss_anne_obtained": ss_anne_obtained,
                     "event": events,
                     "money": money,
@@ -802,11 +828,8 @@ class Environment(Base):
                     "badge_1": float(badges >= 1),
                     "badge_2": float(badges >= 2),
                     "badge_3": float(badges >= 3),
-                    "event": events,
                     "maps_explored": np.sum(self.seen_maps),
                     "party_size": party_size,
-                    "moves_obtained": sum(self.moves_obtained),
-                    "deaths": self.death_count,
                     "bill_capt": (bill_capt_rew/5),
                     'cut_coords': cut_coords,
                     'cut_tiles': cut_tiles,
@@ -815,6 +838,7 @@ class Environment(Base):
                     'pokemon_menu': pokemon_menu,
                     'start_menu': start_menu,
                     'used_cut': self.used_cut,
+                    'state_loaded_instead_of_resetting_in_game': self.state_loaded_instead_of_resetting_in_game,
                 },
                 "reward": {
                     "delta": reward,
@@ -833,6 +857,8 @@ class Environment(Base):
                     "caught_pokemon_reward": caught_pokemon_reward,
                     "moves_obtained_reward": moves_obtained_reward,
                     # "hidden_obj_count_reward": explore_hidden_objs_reward,
+                    "used_cut_reward": cut_rew,
+                    "used_cut_on_tree": used_cut_on_tree_rew,
                 },
                 "pokemon_exploration_map": self.counts_map, # self.explore_map, #  self.counts_map, 
             }
