@@ -72,8 +72,7 @@ class Base:
         self.randstate = os.path.join(STATE_PATH, self.state_file)
         """Creates a PokemonRed environment"""
         if state_path is None:
-            state_path = STATE_PATH + "Bulbasaur.state" # STATE_PATH + "has_pokedex_nballs.state"
-                # Make the environment
+            state_path = STATE_PATH + "Bulbasaur.state"
         self.game, self.screen = make_env(rom_path, headless, quiet, save_video=False, **kwargs)
         self.initial_states = [open_state_file(state_path)]
         self.save_video = save_video
@@ -83,14 +82,17 @@ class Base:
         self.use_screen_memory = True
         self.screenshot_counter = 0
         
+        file_path = 'experiments/running_experiment.txt'
+        if not os.path.exists(file_path):
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w') as file:
+                file.write('default_exp_name')
         # Logging initializations
         with open("experiments/running_experiment.txt", "r") as file:
-        # with open("experiments/test_exp.txt", "r") as file: # for testing video writing BET
             exp_name = file.read()
         self.exp_path = Path(f'experiments/{str(exp_name)}')
         self.env_id = env_id
         self.s_path = Path(f'{str(self.exp_path)}/sessions/{str(self.env_id)}')
-        # self.env_id = Path(f'session_{str(uuid.uuid4())[:4]}')
         self.video_path = Path(f'./videos')
         self.video_path.mkdir(parents=True, exist_ok=True)
         self.csv_path = Path(f'./csv')
@@ -118,7 +120,6 @@ class Base:
         ss_dir = Path('screenshots')
         ss_dir.mkdir(exist_ok=True)
         plt.imsave(
-            # ss_dir / Path(f'ss_{x}_y_{y}_steps_{steps}_{comment}.jpeg'),
             ss_dir / Path(f'{self.screenshot_counter}_{event}_{map_n}.jpeg'),
             self.screen.screen_ndarray())  # (144, 160, 3)
 
@@ -252,7 +253,7 @@ class Environment(Base):
         self.state_loaded_instead_of_resetting_in_game = 0
         self.badge_count = 0
 
-        # #for reseting at 7
+        # #for reseting at 7 resets - leave commented out
         # self.prev_map_n = None
         # self.max_events = 0
         # self.max_level_sum = 0
@@ -447,9 +448,6 @@ class Environment(Base):
 
     def reset(self, seed=None, options=None, max_episode_steps=20480, reward_scale=4.0):
         """Resets the game. Seeding is NOT supported"""
-        # if self.reset_count % 10 == 0: ## resets every 5 to 0 moved seen_coords to init
-        #     load_pyboy_state(self.game, self.load_first_state())
-        # else:
         if self.reset_count == 0:
             load_pyboy_state(self.game, self.load_first_state())
         
@@ -486,7 +484,7 @@ class Environment(Base):
         self.cut = 0
         self.used_cut = 0 # don't reset, for tracking
         self.cut_coords = {}
-        self.cut_tiles = {} # set([])
+        self.cut_tiles = {}
         self.cut_state = deque(maxlen=3)
         self.seen_start_menu = 0
         self.seen_pokemon_menu = 0
@@ -514,8 +512,6 @@ class Environment(Base):
         self.last_10_event_ids = np.zeros((128, 2), dtype=np.float32)
         self.step_count = 0
         self.past_rewards = np.zeros(10240, dtype=np.float32)
-        # self.base_event_flags = self.get_base_event_flags()
-        # assert len(self.all_events_string) == 2552, f'len(self.all_events_string): {len(self.all_events_string)}'
         self.rewarded_events_string = '0' * 2552
         self.seen_map_dict = {}
         self._last_item_count = 0
@@ -524,7 +520,6 @@ class Environment(Base):
         self.hideout_elevator_maps = []
         self.use_mart_count = 0
         self.use_pc_swap_count = 0
-        # self.progress_reward = self.get_game_state_reward()
         self.total_reward = 0
         self.rewarded_coords = set()
         self.museum_punishment = deque(maxlen=10)
@@ -534,22 +529,12 @@ class Environment(Base):
     def step(self, action, fast_video=True):
         run_action_on_emulator(self.game, self.screen, ACTIONS[action], self.headless, fast_video=fast_video,)
         self.time += 1
-
-        # if self.is_dead:
-        #     self.state_loaded_instead_of_resetting_in_game += 1
-        #     load_pyboy_state(self.game, self.load_last_state())
         
         if self.save_video:
             self.add_video_frame()
         
         # Exploration reward
         r, c, map_n = ram_map.position(self.game)
-        # if map_n == 52 or map_n == 53:
-        #     self.museum_punishment.append((r, c))
-        #     exploration_reward = -0.01 * len(self.museum_punishment)
-        # else:
-        # glob_r, glob_c = game_map.local_to_global(r, c, map_n)
-        # self.rewarded_coords = self.update_reward((glob_r,glob_c,map_n))
         self.seen_coords.add((r, c, map_n))
         
         # BET: increase exploration after cutting at least 1 tree to encourage exploration vs cut perseveration
@@ -561,7 +546,7 @@ class Environment(Base):
             self.prev_map_n = map_n
             if map_n not in self.seen_maps:
                 self.seen_maps.add(map_n)
-                # self.save_state()
+                # self.save_state() # save pyboy state on new map_n. used if save states are being used. by default, save states are not used.
 
         # Level reward
         party_size, party_levels = ram_map.party(self.game)
@@ -585,12 +570,12 @@ class Environment(Base):
             self.is_dead = False
         self.last_hp = hp
         self.last_party_size = party_size
-        death_reward = 0 # -0.08 * self.death_count  # -0.05
+        death_reward = 0
         healing_reward = self.total_healing
 
         # Badge reward
         badges = ram_map.badges(self.game)
-        badges_reward = 10 * badges # 5 BET
+        badges_reward = 10 * badges
 
         badges = float(badges)
         if badges >= 1 and self.badge_count == 0 or \
@@ -602,7 +587,7 @@ class Environment(Base):
             # self.save_state()
             self.badge_count += 1
                 
-        # Save Bill
+        # Saved Bill
         bill_state = ram_map.saved_bill(self.game)
         bill_reward = 5 * bill_state
         
@@ -629,12 +614,7 @@ class Environment(Base):
         self.max_events = max(self.max_events, events)
         event_reward = self.max_events
 
-        # #Item Reward
-        # items = ram_map.get_items_in_bag(self.game)
-        # item_reward = len(items)
-
-
-        # Cut check
+        # Cut check 1
         # 0xCFC6 - wTileInFrontOfPlayer
         # 0xCFCB - wUpdateSpritesEnabled
         if ram_map.mem_val(self.game, 0xD057) == 0: # is_in_battle if 1
@@ -669,20 +649,15 @@ class Environment(Base):
                     self.cut_coords[coords] = 0.001
                     self.cut_tiles[self.cut_state[-1][0]] = 1
 
-
                 if int(ram_map.read_bit(self.game, 0xD803, 0)):
                     if self.check_if_in_start_menu():
                         self.seen_start_menu = 1
-
                     if self.check_if_in_pokemon_menu():
                         self.seen_pokemon_menu = 1
-
                     if self.check_if_in_stats_menu():
                         self.seen_stats_menu = 1
-
                     if self.check_if_in_bag_menu():
                         self.seen_bag_menu = 1
-
                     if self.check_if_cancel_bag_menu(action):
                         self.seen_cancel_bag_menu = 1
 
@@ -692,7 +667,7 @@ class Environment(Base):
 
         bill_capt_rew = ram_map.bill_capt(self.game)
         
-        # BET ADDED: used cut on tree
+        # Cut check 2 - BET ADDED: used cut on tree
         if ram_map.used_cut(self.game) == 61:
             ram_map.write_mem(self.game, 0xCD4D, 00) # address, byte to write
             if (map_n, r, c) in self.used_cut_coords_set:
@@ -705,10 +680,9 @@ class Environment(Base):
         pokemon_menu = self.seen_pokemon_menu * 0.1
         stats_menu = self.seen_stats_menu * 0.1
         bag_menu = self.seen_bag_menu * 0.1
-        # "cancel_bag_menu": self.seen_cancel_bag_menu * 0.1,
         cut_coords = sum(self.cut_coords.values()) * 1.0
         cut_tiles = len(self.cut_tiles) * 1.0
-        that_guy = (start_menu + pokemon_menu + stats_menu + bag_menu) # cut_coords + cut_tiles
+        that_guy = (start_menu + pokemon_menu + stats_menu + bag_menu)
     
         seen_pokemon_reward = self.reward_scale * sum(self.seen_pokemon)
         caught_pokemon_reward = self.reward_scale * sum(self.caught_pokemon)
@@ -746,15 +720,7 @@ class Environment(Base):
 
         info = {}
         done = self.time >= self.max_episode_steps
-        # if done:
-        #     a_r = random.random()
-        #     if a_r > 0.5:
-        #         print(f'env_id {self.env_id}: random value={a_r}')
-        #         pass
-        #     else:
-        #         done = False
-        #         self.time = (0.5 * self.reset_count) * self.max_episode_steps
-        #         print(f'env_id {self.env_id} has extended an episode! self.time={self.time}')
+
         if self.save_video and done:
             self.full_frame_writer.close()
         
@@ -862,51 +828,5 @@ class Environment(Base):
                 },
                 "pokemon_exploration_map": self.counts_map, # self.explore_map, #  self.counts_map, 
             }
-
-        # if done or self.time % 5000 == 0:
-        #     info = {
-        #         "reward": {
-        #             "delta": reward,
-        #             "event": event_reward,
-        #             "level": level_reward,
-        #             "badges": badges_reward,
-        #             "bill_saved_reward": bill_reward,
-        #             "hm_count_reward": hm_reward,
-        #             "healing": healing_reward,
-        #             "exploration": exploration_reward,
-        #             "seen_pokemon_reward": seen_pokemon_reward,
-        #             "caught_pokemon_reward": caught_pokemon_reward,
-        #             "moves_obtained_reward": moves_obtained_reward,
-        #         },
-        #         "bill_saved": bill_state,
-        #         "hm_count": hm_count,
-        #         "cut_taught": self.cut,
-        #         "badge_1": float(badges >= 1),
-        #         "badge_2": float(badges >= 2),
-        #         "badge_3": float(badges >= 3),
-        #         "event": events,
-        #         "maps_explored": np.sum(self.seen_maps),
-        #         "party_size": party_size,
-        #         # "pokemon_exploration_map": self.counts_map,
-        #         "moves_obtained": sum(self.moves_obtained),
-        #         "deaths": self.death_count,
-        #         "bill_capt": (bill_capt_rew/5),
-        #         'cut_coords': cut_coords,
-        #         'cut_tiles': cut_tiles,
-        #         'bag_menu': bag_menu,
-        #         'stats_menu': stats_menu,
-        #         'pokemon_menu': pokemon_menu,
-        #         'start_menu': start_menu,
-        #         'used_cut': self.used_cut,
-        #         # "highest_pokemon_level": max(party_levels),
-        #         # "total_party_level": sum(party_levels),
-        #         # "money": money,
-        #         # "ss_anne_state": ss_anne_state,
-        #         # "seen_npcs_count": len(self.seen_npcs),
-        #         # "seen_pokemon": sum(self.seen_pokemon),
-        #         # "caught_pokemon": sum(self.caught_pokemon),
-        #         # "hidden_obj_count": len(self.seen_hidden_objs),
-        #         # "logging": pokemon,
-        # #     }
         
         return self.render(), reward, done, done, info
