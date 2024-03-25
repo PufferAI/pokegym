@@ -1,0 +1,76 @@
+# goes in PufferLib top directory
+train:
+  seed: 1
+  torch_deterministic: True
+  device: cuda
+  learning_rate: 0.00015
+  anneal_lr: False
+  gamma: 0.998
+  gae_lambda: 0.95
+  num_minibatches: 4
+  norm_adv: True
+  clip_coef: 0.1
+  clip_vloss: True
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  target_kl: ~
+
+  env_pool: True  
+  verbose: True 
+  data_dir: experiments
+  checkpoint_interval: 200
+  cpu_offload: True
+  pool_kernel: [0]
+  bptt_horizon: 16
+  vf_clip_coef: 0.1
+  compile: True
+  compile_mode: reduce-overhead
+
+sweep:
+  method: random
+  name: sweep
+  metric:
+    goal: maximize
+    name: episodic_return
+  # Nested parameters name required by WandB API
+  parameters:
+    train:
+      parameters:
+        learning_rate: {
+          'distribution': 'log_uniform_values',
+          'min': 1e-4,
+          'max': 1e-1,
+        }
+        batch_size: {
+          'values': [128, 256, 512, 1024, 2048],
+        }
+        batch_rows: {
+          'values': [16, 32, 64, 128, 256],
+        }
+        bptt_horizon: {
+          'values': [4, 8, 16, 32],
+        }
+
+pokemon_red:
+  package: pokemon_red
+  train:
+    total_timesteps: 500_000_000
+    num_envs: 72
+    envs_per_worker: 1
+    envs_per_batch: 24
+    update_epochs: 3
+    gamma: 0.998
+    batch_size: 49152
+    batch_rows: 128
+  env:
+    name: pokemon_red
+pokemon-red:
+  package: pokemon_red
+pokemonred:
+  package: pokemon_red
+pokemon:
+  package: pokemon_red
+pokegym:
+  package: pokemon_red
+ 
