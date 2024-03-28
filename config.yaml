@@ -3,7 +3,7 @@ train:
   seed: 1
   torch_deterministic: True
   device: cuda
-  learning_rate: 0.00015
+  learning_rate: 0.000175 # 0.00015
   anneal_lr: False
   gamma: 0.998
   gae_lambda: 0.95
@@ -55,11 +55,11 @@ sweep:
 pokemon_red:
   package: pokemon_red
   train:
-    total_timesteps: 500_000_000
+    total_timesteps: 1_000_000_000
     num_envs: 72
     envs_per_worker: 1
     envs_per_batch: 24
-    update_epochs: 3
+    update_epochs: 4 # 3
     gamma: 0.998
     batch_size: 49152
     batch_rows: 128

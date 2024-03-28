@@ -22,7 +22,7 @@ from pokegym.pyboy_binding import (
     load_pyboy_state,
     run_action_on_emulator,
 )
-from . import ram_map, game_map, data
+from . import ram_map, game_map, data, ram_map_leanke
 import subprocess
 import multiprocessing
 import time
@@ -131,7 +131,8 @@ class Base:
         self.explore_hidden_obj_weight = 1
         self.pokemon_center_save_states = []
         self.pokecenters = [41, 58, 64, 68, 81, 89, 133, 141, 154, 171, 147, 182]
-
+        self.used_cut_on_map_n = 0
+        
         R, C = self.screen.raw_screen_buffer_dims()
         self.obs_size = (R // 2, C // 2) # 72, 80, 3
 
@@ -226,9 +227,8 @@ class Base:
  # BET ADDED TREE OBSERVATIONS
     def compute_tree_reward(self, player_pos, trees_positions, map_n, N=3, p=2, q=1):
         if map_n not in MAPS_WITH_TREES:
-            # print(f"No cuttable trees in map {map_n}.")
             return 0.0
-        
+
         trees_per_current_map_n = TREE_COUNT_PER_MAP[map_n]
         if self.used_cut_on_map_n >= trees_per_current_map_n:
             return 0.0
@@ -241,10 +241,10 @@ class Base:
         total_reward = 0
         nearest_trees_features = self.trees_features(player_pos, trees_positions, N)
         
-        for i in range(N):
-            if i < len(nearest_trees_features):  # Ensure there are enough features
-                distance = nearest_trees_features[i]
-            
+        for i, distance in enumerate(nearest_trees_features):
+            if distance <= 0:  # Avoid divide by zero
+                continue  # Skip this tree or assign a default reward
+
             tree_key = (trees_positions[i][0], trees_positions[i][1], map_n)
             if tree_key not in self.min_distances:
                 self.min_distances[tree_key] = float('inf')
@@ -259,12 +259,54 @@ class Base:
                 if distance == 1:  # Maximal reward for being directly adjacent
                     distance_reward = 1
                 else:
-                    distance_reward = 1 / (distance ** p)
+                    distance_reward = 1 / (distance ** p)  # Ensure distance is never zero here
                 
                 priority_reward = 1 / ((i+1) ** q)
                 total_reward += distance_reward * priority_reward
 
         return total_reward
+
+    # def compute_tree_reward(self, player_pos, trees_positions, map_n, N=3, p=2, q=1):
+    #     if map_n not in MAPS_WITH_TREES:
+    #         # print(f"No cuttable trees in map {map_n}.")
+    #         return 0.0
+        
+    #     trees_per_current_map_n = TREE_COUNT_PER_MAP[map_n]
+    #     if self.used_cut_on_map_n >= trees_per_current_map_n:
+    #         return 0.0
+
+    #     if not hasattr(self, 'min_distances'):
+    #         self.min_distances = {}
+    #     if not hasattr(self, 'rewarded_distances'):
+    #         self.rewarded_distances = {}
+
+    #     total_reward = 0
+    #     nearest_trees_features = self.trees_features(player_pos, trees_positions, N)
+        
+    #     for i in range(N):
+    #         if i < len(nearest_trees_features):  # Ensure there are enough features
+    #             distance = nearest_trees_features[i]
+            
+    #         tree_key = (trees_positions[i][0], trees_positions[i][1], map_n)
+    #         if tree_key not in self.min_distances:
+    #             self.min_distances[tree_key] = float('inf')
+            
+    #         if distance < self.min_distances[tree_key] and distance not in self.rewarded_distances.get(tree_key, set()):
+    #             self.min_distances[tree_key] = distance
+    #             if tree_key not in self.rewarded_distances:
+    #                 self.rewarded_distances[tree_key] = set()
+    #             self.rewarded_distances[tree_key].add(distance)
+                
+    #             # Adjust reward computation
+    #             if distance == 1:  # Maximal reward for being directly adjacent
+    #                 distance_reward = 1
+    #             else:
+    #                 distance_reward = 1 / (distance ** p)
+                
+    #             priority_reward = 1 / ((i+1) ** q)
+    #             total_reward += distance_reward * priority_reward
+
+    #     return total_reward
         
     def calculate_distance(self, player_pos, tree_pos):
         """Calculate the Manhattan distance from player to a tree."""
@@ -297,6 +339,7 @@ class Base:
             features.extend([0] * (N - len(features)))
             
         return features
+
 
     # def save_fixed_window(window, file_path="fixed_window.png"):
     #     # Check if window is grayscale (2D array)
@@ -665,7 +708,10 @@ class Environment(Base):
         
         # BET ADDED TREE REWARDS
         glob_r, glob_c = game_map.local_to_global(r, c, map_n)
-        tree_distance_reward = self.compute_tree_reward((glob_r, glob_c), TREE_POSITIONS_GRID_GLOBAL, map_n)
+        if self.cut:
+            tree_distance_reward = self.compute_tree_reward((glob_r, glob_c), TREE_POSITIONS_GRID_GLOBAL, map_n)
+        else:
+            tree_distance_reward = 0
         
         # BET: increase exploration after cutting at least 1 tree to encourage exploration vs cut perseveration
         exploration_reward = 0.02 * len(self.seen_coords) if self.used_cut < 1 else 0.1 * len(self.seen_coords) # 0.2 doesn't work (too high??)
@@ -733,6 +779,12 @@ class Environment(Base):
         events = ram_map.events(self.game)
         self.max_events = max(self.max_events, events)
         event_reward = self.max_events
+
+        # Dojo reward
+        dojo_reward = ram_map_leanke.dojo(self.game)
+        
+        # Hideout reward
+        hideout_reward = ram_map_leanke.hideout(self.game)
 
         # Cut check
         # 0xCFC6 - wTileInFrontOfPlayer
@@ -825,7 +877,9 @@ class Environment(Base):
             + that_guy / 2 # reward for cutting an actual tree (but not erika's trees)
             + cut_coords # reward for cutting anything at all
             + cut_tiles # reward for cutting a cut tile, e.g. a patch of grass
-            + tree_distance_reward * 0.5
+            + tree_distance_reward * 0.6 # 1 is too high # 0.25 # 0.5
+            + dojo_reward * 5
+            + hideout_reward * 5
         )
 
         # Subtract previous reward
@@ -947,6 +1001,8 @@ class Environment(Base):
                     "used_cut_reward": cut_rew,
                     # "used_cut_on_tree": used_cut_on_tree_rew,
                     "tree_distance_reward": tree_distance_reward,
+                    "dojo_reward": dojo_reward,
+                    "hideout_reward": hideout_reward,
                 },
                 "pokemon_exploration_map": self.counts_map, # self.explore_map, #  self.counts_map, 
             }
